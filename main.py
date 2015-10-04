@@ -1,5 +1,7 @@
 # coding=utf-8
-import hmm
+import numpy
+from hmm import HMMTrainer
+from hmm import HMM
 #**********************
 # Lecture des donnees
 # Retourne deux listes X et Y avec:
@@ -30,3 +32,16 @@ def lireData(sourceFile):
 
 Xtrain,Ytrain=lireData("Data/ftb.train.encode")
 Xdev,Ydev=lireData("Data/ftb.dev.encode")
+nb_symboles= numpy.max([numpy.max(U) for U in Xtrain])
+nb_states = numpy.max([numpy.max(U) for U in Ytrain])
+
+#Xtrain=[[1, 2, 1, 1, 3, 5, 6, 7, 1, 1, 2], [2, 1, 0, 3, 1, 4, 7, 6, 2, 0, 1] , [0, 1, 1, 2, 5, 7, 7, 7, 1, 1, 1]]
+#Ytrain=[[0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0], [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0],  [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0]]
+#nb_states = 2
+#nb_symboles = 8
+
+trainer = HMMTrainer(range(nb_states), range(nb_symboles))
+m= trainer.modeleGeneratif(Xtrain, Ytrain)
+
+l = m.viterbi(Xtrain[600])
+print('Xtrain[600]=',Xtrain[600],' l=', l)
