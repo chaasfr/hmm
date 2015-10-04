@@ -1,6 +1,5 @@
 # coding=utf-8
-import nltk.probability
-import numpy
+from nltk.probability import *
 from numpy import *
 
 class HMM(object):
@@ -13,21 +12,21 @@ class HMM(object):
         self._pi = pi #liste des scores initiaux (i.e. pi(Mi) est la probabilité que Mi débute la phrase)
 
     #**********************
-    # Forme générale du de l'algorithme de Viterbi
+    # Forme générale de l'algorithme de Viterbi
     # Retourne la séq d'obs maximisant le score associé à la séquence d'entrée
     # Entrées:
     # Seq: la sequence de mots étudiée
     #**********************
-    def viterbi(self,seq): #inspiré de hmm_mit_simple
+    def viterbi(self,seq): #inspiré de hmm_mit_simple.best_path_simple
         T=len(seq)
         N=len(self._states)
         V = zeros((T, N), float64) #Matrice de calcul des scores temporaires. V[t,Sj]= score d'arriver en Sj au temps t
-        B = zeros((T,N),float64) #Matrice des paths temp. B[t,Sj]=Si <=> si on est à l'état Sj au temps t, l'état le plus probable suivant est Si
+        B = {} #Matrice des paths temp. B[t,Sj]=Si <=> si on est à l'état Sj au temps t, l'état le plus probable suivant est Si
 
-        # Les probabilités de débuter de chaque état
+        # Les probabilités de débuter pour chaque état
         symbol = seq[0]
         for i, state in enumerate(self._states):
-            V[0, i] = self._pi[state] + self._E[state, symbol]
+            V[0, i] = self._pi[state] + self._E[state][symbol]
             B[0, state] = None
 
         # Cherche l'état avec la plus grande proba au temps t
@@ -38,10 +37,10 @@ class HMM(object):
                 best = None
                 for i in range(N):
                     si = self._states[i]
-                    va = V[t-1, i] + self._T[j,i]
+                    va = V[t-1, i] + self._T[j][i]
                     if not best or va > best[0]:
                         best = (va, si)
-                V[t, j] = best[0] + self._E[sj, symbol]
+                V[t, j] = best[0] + self._E[sj][symbol]
                 B[t, sj] = best[1]
 
         # Cherche l'état final
@@ -67,8 +66,14 @@ class HMMTrainer(object):
 
     def __init__(self, states=None, symbols=None):
         #peuvent être nuls car ils sont updated dans le training
-        self._states = states
-        self._symbols = symbols
+        if states:
+            self._states = states
+        else:
+            self._states = []
+        if symbols:
+            self._symbols = symbols
+        else:
+            self._symbols = []
 
 #**********************
 # Entraine un HMM suivant le modèle génératif
@@ -79,21 +84,22 @@ class HMMTrainer(object):
 #**********************
     def modeleGeneratif(self,sequenceX,sequenceY):
         # update de la liste des états et des symboles du HMM. A optimiser
-        for i in range(len(sequenceX)):
-            xs=sequenceX[i]
-            ys=sequenceY[i]
-            for j in range(len(xs)):
-                state= ys[j]
-                symbol= xs[j]
-                if state not in self._states:
-                    self._states.append(state)
-                if symbol not in self._symbols:
-                    self._symbols.append(symbol)
+        # for i in range(len(sequenceX)):
+        #     xs=sequenceX[i]
+        #     ys=sequenceY[i]
+        #     for j in range(len(xs)):
+        #         state= ys[j]
+        #         symbol= xs[j]
+        #         if state not in self._states:
+        #             self._states.append(state)
+        #         if symbol not in self._symbols:
+        #             self._symbols.append(symbol)
+
         #Compte les occurences, les transitions, les emissions et les starters de chaque phrase
-        first = [0]*len(self._states)
-        T = zeros((len(self._states),len(self._states)),float64)
-        E = zeros((len(self._states),len(self._symbols)),float64)
-        occurence=[0]*len(self._states)
+        pi = FreqDist()
+        T = ConditionalFreqDist()
+        E = ConditionalFreqDist()
+        occurence = FreqDist()
         for i in range(len(sequenceX)):
             lasts = -1
             xs = sequenceX[i]
@@ -101,20 +107,28 @@ class HMMTrainer(object):
             for j in range(len(xs)):
                 state = ys[j]
                 symbol = xs[j]
-                occurence[state] +=1; #compte le nombre d'occurence de state
+                occurence[state] +=1
                 if lasts == -1: #si le mot débute la phrase
-                    first[state] +=1 #compte le nombre de fois que state commence une phrase
+                    pi[state] +=1 #compte le nombre de fois que state commence une phrase
                 else:
                     T[lasts][state] +=1 #compte le nombre de fois qu'on passe de lasts à state
                 E[state][symbol] +=1 # compte le nombre de fois qu'on étiquette symbol par state
                 lasts = state
-        #calcul les probabilités
-        pi = [x / len(sequenceX) for x in first] #retourne pi cf énoncé
+
+                # update de la liste des états et des symboles du HMM. A optimiser
+                if state not in self._states:
+                    self._states.append(state)
+                if symbol not in self._symbols:
+                    self._symbols.append(symbol)
+
+        #calcul les probabilités~fréquences relatives
+        for state in pi:
+            pi[state]=pi[state]/float(len(sequenceX)) #float car on est sur 0<x<1
         for i in range(len(self._states)):
             for j in range(len(self._states)):
-                T[i,j] = T[i,j]/occurence[i]
+                T[i][j]=T[i][j] / float(occurence[i])
             for j in range(len(self._symbols)):
-                E[i,j]=E[i,j]/occurence[i]
+                E[i][j]=E[i][j] / float(occurence[i])
         #Crée le HMM avec les paramêtres appris
         return HMM(self._symbols,self._states,T,E,pi)
 
