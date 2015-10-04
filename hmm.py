@@ -17,12 +17,50 @@ class HMM(object):
     # Entrées:
     # Seq: la sequence de mots étudiée
     #**********************
-    def Viterbi(self,seq):
-        N=len(seq) #longueur de la séquence étudiée
-        S=len(T[1,:]) #nombre d'états
-        V = zeros((T, N), float64) #TODO
-        B = {} #résultat temporaire
+    def Viterbi(self,seq): #inspiré de hmm_mit_simple
+        T=len(seq)
+        N=len(self._states)
+        Score = zeros((T, N), float64) #Matrice de calcul des scores temporaires. V[t,Sj]= score d'arriver en Sj au temps t
+        B = zeros(T,N) #Matrice des paths temp. B[t,Sj]=Si <=> si on est à l'état Sj au temps t, l'état le plus probable suivant est Si
 
+        # Les probabilités de débuter de chaque état
+        symbol = seq[0]
+        for i, state in enumerate(self._states):
+            V[0, i] = self._pi(state) + self._E(state, symbol)
+            B[0, state] = None
+
+        # Cherche l'état avec la plus grande proba au temps t
+        for t in range(1, T):
+            symbol = seq[t]
+            for j in range(N):
+                sj = self._states[j]
+                best = None
+                for i in range(N):
+                    si = self._states[i]
+                    va = V[t-1, i] + self._T[j,i]
+                    if not best or va > best[0]:
+                        best = (va, si)
+                V[t, j] = best[0] + self._E(sj, symbol)
+                B[t, sj] = best[1]
+
+        # Cherche l'état final
+        best = None
+        for i in range(N):
+            val = V[T-1, i]
+            if not best or val > best[0]:
+                best = (val, self._states[i])
+
+        # Parcourt B (dans le sens inverse) pour déterminer le chemin le plus probable
+        current = best[1]
+        sequence = [current]
+        for t in range(T-1, 0, -1):
+            last = B[t, current]
+            sequence.append(last)
+            current = last
+
+        # retourne la chemin obtenu pour le remettre dans le bon sens
+        sequence.reverse()
+        return sequence
 
 class HMMTrainer(object):
 
