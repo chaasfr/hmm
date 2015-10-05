@@ -11,6 +11,62 @@ class HMM(object):
         self._E = E #matrice des scores d'émission (i.e. E(i,j) la proba d'observer j en étant en i)
         self._pi = pi #liste des scores initiaux (i.e. pi(Mi) est la probabilité que Mi débute la phrase)
 
+
+    def save(self,fileHMM):
+        fo= open(fileHMM, "wb")
+        fo.write( \
+            "#nb etats \n" + \
+            str(len(self._states)) + "\n" +\
+            "#nb observables \n" + \
+            str(len(self._symbols)) + "\n" +\
+            "#parametres initiaux \n")
+        for i in range(len(self._states)):
+            fo.write("%.6f" % self._pi[i] + " # I(" + str(i) + ")\n")
+        fo.write("parametres de transition \n")
+        for i in range(len(self._states)):
+            for j in range(len(self._states)):
+                fo.write("%.6f" %self._T[i][j] + " # T(" + str(i) + "," + str(j) + ")\n")
+        fo.write("parametres d\'émission \n")
+        for i in range(len(self._states)):
+            for j in range(len(self._symbols)):
+                fo.write("%.6f" %self._E[i][j] + " # E(" + str(i) + "," + str(j) + ")\n")
+        fo.close
+
+    def load(self,fileHMM):
+        fo=open(fileHMM,"r")
+        currentLine= 0
+        lines=fo.readlines()
+
+        nb_states=int(lines[1])
+        self._states=[]
+        for i in range(nb_states):
+            self._states.append(i)
+
+        nb_symbols=int(lines[3])
+        self._symbols=[]
+        for i in range(nb_symbols):
+            self._symbols.append(i)
+
+        self._pi=FreqDist()
+        currentLine=5
+        for i in range(len(self._states)):
+            self._pi[i]=float(lines[i+currentLine][0:7])
+
+        self._T=ConditionalFreqDist()
+        currentLine = currentLine + len(self._states) + 1
+        for i in range(len(self._states)):
+            for j in range(len(self._states)):
+                self._T[i][j]=float(lines[i*len(self._states)+j+currentLine][0:7])
+
+        self._E=ConditionalFreqDist()
+        currentLine = currentLine + len(self._states) * len(self._states) + 1
+        for i in range(len(self._states)):
+            for j in range(len(self._symbols)):
+                self._E[i][j]=float(lines[i*len(self._symbols)+j+currentLine][0:7])
+
+
+        fo.close
+
     #**********************
     # Forme générale de l'algorithme de Viterbi
     # Retourne la séq d'obs maximisant le score associé à la séquence d'entrée

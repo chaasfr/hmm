@@ -39,6 +39,8 @@ nb_states = numpy.max([numpy.max(U) for U in Ytrain])
 # Ytrain=[[0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0], [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0],  [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0]]
 # nb_states = 2
 # nb_symboles = 8
+# Xdev=Xtrain
+# Ydev=Ytrain
 
 trainer = HMMTrainer(range(nb_states), range(nb_symboles))
 m= trainer.modeleGeneratif(Xtrain, Ytrain)
@@ -82,3 +84,6 @@ print('TEST SET')
 print ('good=',good)
 print('bad=',bad)
 print('accuracy=',good/float(good+bad))
+m.save("hmm.pkl")
+m.load("hmm.pkl")
+m.save("hmm.pkl")
