@@ -22,11 +22,11 @@ class HMM(object):
             "#parametres initiaux \n")
         for i in range(len(self._states)):
             fo.write("%.6f" % self._pi[i] + " # I(" + str(i) + ")\n")
-        fo.write("parametres de transition \n")
+        fo.write("#parametres de transition \n")
         for i in range(len(self._states)):
             for j in range(len(self._states)):
                 fo.write("%.6f" %self._T[i][j] + " # T(" + str(i) + "," + str(j) + ")\n")
-        fo.write("parametres d\'émission \n")
+        fo.write("#parametres d\'émission \n")
         for i in range(len(self._states)):
             for j in range(len(self._symbols)):
                 fo.write("%.6f" %self._E[i][j] + " # E(" + str(i) + "," + str(j) + ")\n")
@@ -85,7 +85,7 @@ class HMM(object):
             V[0, i] = self._pi[state] + self._E[state][symbol]
             B[0, state] = None
 
-        # Cherche l'état avec la plus grande proba au temps t
+        # Cherche l'état avec la plus grande proba au temps t à partir de t-1
         for t in range(1, T):
             symbol = seq[t]
             for j in range(N):
