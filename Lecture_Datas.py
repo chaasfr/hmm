@@ -2,7 +2,7 @@
 #**********************
 # Lecture des donnees
 #**********************
-source = open("Data/ftb.dev.encode", "r")
+source = open("Data/ftb.train.encode", "r")
 
 toutesleslignes = source.readlines()
 l=len(toutesleslignes)
@@ -14,7 +14,6 @@ sequenceX = []
 sequenceY = []
 for i in range(l):
     r = toutesleslignes[i].rstrip('\n\r')
-    print (r)
     if r=='':       
         X.append(sequenceX)
         sequenceX =[]
@@ -25,9 +24,9 @@ for i in range(l):
         sequenceX.append(int(r[0]))
         sequenceY.append(int(r[1]))
 
-print len(X)
-print type(X[0])
-print (sequenceX)
+# print len(X)
+# print type(X[0])
+# print (sequenceX)
 
 #print X
 #************************************
@@ -73,18 +72,19 @@ l = m.best_path_simple(SeqX[1])
 print('l=',l)
 # Cas 2 : avec les vraies donnees
 
-Nb_seq_train = len(X)
+# Nb_seq_train = len(X)
 
-SeqX = X[0:Nb_seq_train]
-SeqY= Y[0:Nb_seq_train]
-nb_symboles= np.max([np.max(U) for U in SeqX])
-nb_states = np.max([np.max(U) for U in SeqY])
+# SeqX = X[0:Nb_seq_train]
+# SeqY= Y[0:Nb_seq_train]
+# nb_symboles= np.max([np.max(U) for U in SeqX])
+# nb_states = np.max([np.max(U) for U in SeqY])
 
-trainer = HiddenMarkovModelTrainer(range(nb_states), range(nb_symboles))
-m= trainer.train_supervised(SeqX, SeqY)
-print(X[600])
-l = m.best_path_simple(X[600])
+# trainer = HiddenMarkovModelTrainer(range(nb_states), range(nb_symboles))
+# m= trainer.train_supervised(SeqX, SeqY)
 
-p = m.log_probability(X[600])
+# l = m.best_path_simple(X[600])
 
-print("La sequence d etats la plus probabe est :", l, " avec la probablite :",p)
+# p = m.log_probability(X[600])
+
+# print('X[600]=',X[600])
+# print("La sequence d etats la plus probabe est :", l, " avec la probablite :",p)

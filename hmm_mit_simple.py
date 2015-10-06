@@ -108,9 +108,11 @@ class HiddenMarkovModel(object):
         # find the starting log probabilities for each state
         symbol = unlabeled_sequence[0]
         for i, state in enumerate(self._states):
+            print self._priors.logprob(state)
             V[0, i] = self._priors.logprob(state) + \
                       self._output_logprob(state, symbol)
             B[0, state] = None
+        print V
 
         # find the maximum log probabilities for reaching each state at time t
         for t in range(1, T):
@@ -265,8 +267,9 @@ class HiddenMarkovModelTrainer(object):
 
         # create probability distributions (with smoothing)
         N = len(self._states)
+        print starting
         pi = estimator(starting, N)
-        #print pi
+        print pi
         A = ConditionalProbDist(transitions, ELEProbDist, N)
         B = ConditionalProbDist(outputs, ELEProbDist, len(self._symbols))
                                
