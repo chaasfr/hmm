@@ -1,16 +1,42 @@
 # coding=utf-8
 from nltk.probability import *
 from numpy import *
+from random import shuffle
+_NINF = float('-1e300')
 
 class HMM(object):
 
-    def __init__(self, symbols, states, T, E, pi):
-        self._states = states #liste d'états possibles
-        self._symbols = symbols #liste des symboles d'observations possibles
-        self._T = T #matrice des scores de transition (i.e. t(i,j) la proba d'aller en j en étant en i)
-        self._E = E #matrice des scores d'émission (i.e. E(i,j) la proba d'observer j en étant en i)
-        self._pi = pi #liste des scores initiaux (i.e. pi(Mi) est la probabilité que Mi débute la phrase)
+    def __init__(self, symbols, states, T, E, pi,modele):
+        if states != None:
+            self._states = states #liste d'états possibles
+        else:
+            self.states = []
 
+        if symbols != None:
+            self._symbols = symbols #liste des symboles d'observations possibles
+        else:
+            self._symbols = []
+
+        if T != None:
+            self._T = T #matrice des scores de transition (i.e. t(i,j) la proba d'aller en j en étant en i)
+        else:
+            self._T=ConditionalFreqDist()
+
+        if E != None:
+            self._E = E #matrice des scores d'émission (i.e. E(i,j) la proba d'observer j en étant en i)
+        else:
+            self._E= ConditionalFreqDist()
+
+        if pi != None:
+            self._pi = pi #liste des scores initiaux (i.e. pi(Mi) est la probabilité que Mi débute la phrase)
+        else:
+            pi = FreqDist()
+
+        if modele != None:
+            self._modele=modele #savoir si on a train suivant un modèle gen(0) ou un modèle discriminant(1). 
+        else:
+            print("no training selected ! Select 0 for gen or 1 for dis")
+            self._modele =0
 
     def save(self,fileHMM):
         fo= open(fileHMM, "wb")
@@ -63,49 +89,93 @@ class HMM(object):
         for i in range(len(self._states)):
             for j in range(len(self._symbols)):
                 self._E[i][j]=float(lines[i*len(self._symbols)+j+currentLine][0:7])
-
-
         fo.close
 
-    #**********************
-    # Forme générale de l'algorithme de Viterbi
-    # Retourne la séq d'obs maximisant le score associé à la séquence d'entrée
-    # Entrées:
-    # Seq: la sequence de mots étudiée
-    #**********************
+    def accuracyEval(self,sequenceX,sequenceY):
+        goodW=0
+        badW=0
+        goodS=0
+        badS=0
+        for i in range(len(sequenceX)):
+            l=self.viterbi(sequenceX[i])
+            for j in range(len(sequenceY[i])):
+                if sequenceY[i][j] == l[j]:
+                    goodW +=1
+                else:
+                    badW +=1
+            if sequenceY[i] == l:
+                goodS +=1
+            else:
+                badS +=1
+        return(goodW,badW,goodS,badS)
+
+    def _problog(self,p):
+        #sert à calculer le log des probabilités dans Viterbi
+        return (math.log(p, 2) if p != 0 else _NINF)
+
     def viterbi(self,seq): #inspiré de hmm_mit_simple.best_path_simple
+        #**********************
+        # Forme générale de l'algorithme de Viterbi
+        # Retourne la séq d'obs maximisant le score associé à la séquence d'entrée
+        # Entrées:
+        # Seq: la sequence de mots étudiée
+        #**********************
+
         T=len(seq)
         N=len(self._states)
         V = zeros((T, N), float64) #Matrice de calcul des scores temporaires. V[t,Sj]= score d'arriver en Sj au temps t
         B = {} #Matrice des paths temp. B[t,Sj]=Si <=> si on est à l'état Sj au temps t, l'état le plus probable suivant est Si
 
-        # Les probabilités de débuter pour chaque état
-        symbol = seq[0]
-        for i, state in enumerate(self._states):
-            V[0, i] = self._pi[state] + self._E[state][symbol]
-            B[0, state] = None
+        #On discerne deux cas suivant si l'on a train en modele_gen ou en modele discr
+        #Si l'on a train en modele_gen, il faut prendre le log des probs pour éviter des pbs
+        #de calcul. En revanche, en modele disc, on n'en a pas besoin.
+        if self._modele==0:
+            # Les probabilités de débuter pour chaque état
+            symbol = seq[0]
+            for i, state in enumerate(self._states):
+                V[0, i] = self._problog(self._pi[state])+ self._problog(self._E[state][symbol])
+                B[0, state] = None
+            # Cherche l'état avec la plus grande proba au temps t à partir de t-1
+            for t in range(1, T):
+                symbol = seq[t]
+                for j in range(N):
+                    sj = self._states[j]
+                    best = None
+                    for i in range(N):
+                        si = self._states[i]
+                        va = V[t-1, i] + self._problog(self._T[j][i])
+                        if not best or va > best[0]:
+                            best = (va, si)
+                    V[t, j] = best[0] + self._problog(self._E[sj][symbol])
+                    B[t, sj] = best[1]
 
-        # Cherche l'état avec la plus grande proba au temps t à partir de t-1
-        for t in range(1, T):
-            symbol = seq[t]
-            for j in range(N):
-                sj = self._states[j]
-                best = None
-                for i in range(N):
-                    si = self._states[i]
-                    va = V[t-1, i] + self._T[j][i]
-                    if not best or va > best[0]:
-                        best = (va, si)
-                V[t, j] = best[0] + self._E[sj][symbol]
-                B[t, sj] = best[1]
+        elif self._modele==1:
+            # Les probabilités de débuter pour chaque état
+            symbol = seq[0]
+            for i, state in enumerate(self._states):
+                V[0, i] = self._pi[state]+ self._E[state][symbol]
+                B[0, state] = None
+            # Cherche l'état avec la plus grande proba au temps t à partir de t-1
+            for t in range(1, T):
+                symbol = seq[t]
+                for j in range(N):
+                    sj = self._states[j]
+                    best = None
+                    for i in range(N):
+                        si = self._states[i]
+                        va = V[t-1, i] + self._T[j][i]
+                        if not best or va > best[0]:
+                            best = (va, si)
+                    V[t, j] = best[0] + self._E[sj][symbol]
+                    B[t, sj] = best[1]
 
+        # Reconstruit le chemin final:
         # Cherche l'état final
         best = None
         for i in range(N):
             val = V[T-1, i]
             if not best or val > best[0]:
                 best = (val, self._states[i])
-
         # Parcourt B (dans le sens inverse) pour déterminer le chemin le plus probable
         current = best[1]
         sequence = [current]
@@ -117,6 +187,7 @@ class HMM(object):
         # retourne la chemin obtenu pour le remettre dans le bon sens
         sequence.reverse()
         return sequence
+
 
 class HMMTrainer(object):
 
@@ -138,28 +209,19 @@ class HMMTrainer(object):
 # E la liste des scores d'émission
 # compte le nombre d'apparition en premier mot(pi), le nombre de bigramme(transition) et d'observation (emission)
 #**********************
-    def modeleGeneratif(self,sequenceX,sequenceY):
-        # update de la liste des états et des symboles du HMM. A optimiser
-        # for i in range(len(sequenceX)):
-        #     xs=sequenceX[i]
-        #     ys=sequenceY[i]
-        #     for j in range(len(xs)):
-        #         state= ys[j]
-        #         symbol= xs[j]
-        #         if state not in self._states:
-        #             self._states.append(state)
-        #         if symbol not in self._symbols:
-        #             self._symbols.append(symbol)
-
+    def modeleGeneratif(self,sequenceX,sequenceY, taille):
         #Compte les occurences, les transitions, les emissions et les starters de chaque phrase
         pi = FreqDist()
         T = ConditionalFreqDist()
         E = ConditionalFreqDist()
         occurence = FreqDist()
-        for i in range(len(sequenceX)):
+        indice= list(range(0, len(sequenceX))) # listes des indices de X et Y.
+        random.shuffle(indice) # shuffle pour prendre des élements aléatoires. On ne shuffle pas X et Y pour garder la correspondace X(i) correspond à Y(i)
+
+        for i in range(taille):
             lasts = -1
-            xs = sequenceX[i]
-            ys = sequenceY[i]
+            xs = sequenceX[indice[i]]
+            ys = sequenceY[indice[i]]
             for j in range(len(xs)):
                 state = ys[j]
                 symbol = xs[j]
@@ -171,7 +233,7 @@ class HMMTrainer(object):
                 E[state][symbol] +=1 # compte le nombre de fois qu'on étiquette symbol par state
                 lasts = state
 
-                # update de la liste des états et des symboles du HMM. A optimiser
+                # update de la liste des états et des symboles du HMM.
                 if state not in self._states:
                     self._states.append(state)
                 if symbol not in self._symbols:
@@ -179,14 +241,14 @@ class HMMTrainer(object):
 
         #calcul les probabilités~fréquences relatives
         for state in pi:
-            pi[state]=pi[state]/float(len(sequenceX)) #float car on est sur 0<x<1
-        for i in range(len(self._states)):
-            for j in range(len(self._states)):
-                T[i][j]=T[i][j] / float(occurence[i])
-            for j in range(len(self._symbols)):
-                E[i][j]=E[i][j] / float(occurence[i])
+            pi[state]=pi[state]/float(taille) #float car on est sur 0<x<1
+        for i in self._states:
+            for j in self._states:
+                if (occurence[i]!=0): T[i][j]=T[i][j] / float(occurence[i])
+            for j in self._symbols:
+                if (occurence[i]!=0): E[i][j]=E[i][j] / float(occurence[i])
         #Crée le HMM avec les paramêtres appris
-        return HMM(self._symbols,self._states,T,E,pi)
+        return HMM(self._symbols,self._states,T,E,pi,0)
 
     #def ModeleDiscriminant(self,sequenceX,sequenceY):
         #TODO
