@@ -211,19 +211,18 @@ class HMMTrainer(object):
 # E la liste des scores d'émission
 # compte le nombre d'apparition en premier mot(pi), le nombre de bigramme(transition) et d'observation (emission)
 #**********************
-    def modeleGeneratif(self,sequenceX,sequenceY, taille):
+    def modeleGeneratif(self,sequenceX,sequenceY):
         #Compte les occurences, les transitions, les emissions et les starters de chaque phrase
         pi = FreqDist()
         T = ConditionalFreqDist()
         E = ConditionalFreqDist()
         occurence = FreqDist()
-        indice= list(range(0, len(sequenceX))) # listes des indices de X et Y.
-        random.shuffle(indice) # shuffle pour prendre des élements aléatoires. On ne shuffle pas X et Y pour garder la correspondace X(i) correspond à Y(i)
+        
 
-        for i in range(taille):
+        for i in range(len(sequenceX)):
             lasts = -1
-            xs = sequenceX[indice[i]]
-            ys = sequenceY[indice[i]]
+            xs = sequenceX[i]
+            ys = sequenceY[i]
             for j in range(len(xs)):
                 state = ys[j]
                 symbol = xs[j]
@@ -243,7 +242,7 @@ class HMMTrainer(object):
 
         #calcul les probabilités~fréquences relatives
         for state in pi:
-            pi[state]=pi[state]/float(taille) #float car on est sur 0<x<1
+            pi[state]=pi[state]/float(len(sequenceX)) #float car on est sur 0<x<1
         for i in self._states:
             for j in self._states:
                 if (occurence[i]!=0): T[i][j]=T[i][j] / float(occurence[i])

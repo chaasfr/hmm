@@ -1,7 +1,9 @@
 # coding=utf-8
 import numpy
+import random
 from hmm import HMMTrainer
 from hmm import HMM
+from random import shuffle
 #**********************
 # Lecture des donnees
 # Retourne deux listes X et Y avec:
@@ -32,8 +34,7 @@ def lireData(sourceFile):
 
 Xtrain,Ytrain=lireData("Data/ftb.train.encode")
 Xdev,Ydev=lireData("Data/ftb.dev.encode")
-nb_symboles= numpy.max([numpy.max(U) for U in Xtrain])
-nb_states = numpy.max([numpy.max(U) for U in Ytrain])
+
 
 # Xtrain=[[1, 2, 1, 1, 3, 5, 6, 7, 1, 1, 2], [2, 1, 0, 3, 1, 4, 7, 6, 2, 0, 1] , [0, 1, 1, 2, 5, 7, 7, 7, 1, 1, 1]]
 # Ytrain=[[0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0], [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0],  [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0]]
@@ -45,14 +46,23 @@ goodWordTrain=goodSentenceTrain=goodWordDev=goodSentenceDev=numpy.zeros((20,50),
 badWordTrain=badSentenceTrain=badWordDev=badSentenceDev=numpy.zeros((20,50),float)
 
 for j in range(1,20):
-	message="DEV. on passe à des corpus de " + str(j*5) +" pourcents du corpus total."
+	message="on passe à des corpus de " + str(j*5) +" pourcents du corpus total."
 	print(message)
 	for i in range (1,50): #nbr de run par tranche de corpus
 		print("lancement du run", i, "avec j=",j)
+		#Randomization du trainset. On train sur des tranches de j*5% du corpus
+		Xtaken=Ytaken=[]
+		shuffler= list(range(0, int(round(0.05*j*len(Xtrain))))) # listes des indices de X et Y.
+		random.shuffle(shuffler) # shuffle pour prendre des élements aléatoires. On ne shuffle pas X et Y pour garder la correspondance X(i) correspond à Y(i)
+		for k in range(len(shuffler)):
+			Xtaken.append(Xtrain[shuffler[k]])
+			Ytaken.append(Ytrain[shuffler[k]])
+		nb_symboles= numpy.max([numpy.max(U) for U in Xtaken])
+		nb_states = numpy.max([numpy.max(U) for U in Ytaken])
 		trainer = HMMTrainer(range(nb_states), range(nb_symboles))
-		m= trainer.modeleGeneratif(Xtrain, Ytrain, int(round(0.05*j*len(Xtrain)))) #on train par tranche de 5%
+		m= trainer.modeleGeneratif(Xtaken, Ytaken)
 		#évaluation de l'algo
-		(goodWordTrain[j,i],badWordTrain[j,i],goodSentenceTrain[j,i],badSentenceTrain[j,i]) = m.accuracyEval(Xtrain,Ytrain)
+		(goodWordTrain[j,i],badWordTrain[j,i],goodSentenceTrain[j,i],badSentenceTrain[j,i]) = m.accuracyEval(Xtaken,Ytaken)
 		print("TRAIN SET")
 		print(	"words correctly estimated: ", goodWordTrain[j,i])
 		print(	"words not correctly estimated: ", badWordTrain[j,i])
