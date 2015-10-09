@@ -98,12 +98,14 @@ class HMM(object):
         badS=0
         for i in range(len(sequenceX)):
             l=self.viterbi(sequenceX[i])
+            foundBad=0
             for j in range(len(sequenceY[i])):
                 if sequenceY[i][j] == l[j]:
                     goodW +=1
                 else:
                     badW +=1
-            if sequenceY[i] == l:
+                    foundBad +=1
+            if foundBad == 0:
                 goodS +=1
             else:
                 badS +=1
