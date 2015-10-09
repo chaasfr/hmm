@@ -218,7 +218,6 @@ class HMMTrainer(object):
         E = ConditionalFreqDist()
         occurence = FreqDist()
         
-
         for i in range(len(sequenceX)):
             lasts = -1
             xs = sequenceX[i]

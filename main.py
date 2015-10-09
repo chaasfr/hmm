@@ -42,19 +42,27 @@ Xdev,Ydev=lireData("Data/ftb.dev.encode")
 # nb_symboles = 8
 # Xdev=Xtrain
 # Ydev=Ytrain
-goodWordTrain=goodSentenceTrain=goodWordDev=goodSentenceDev=numpy.zeros((20,50),float)
-badWordTrain=badSentenceTrain=badWordDev=badSentenceDev=numpy.zeros((20,50),float)
+goodWordTrain=numpy.zeros((20,50),float)
+goodSentenceTrain=numpy.zeros((20,50),float)
+goodWordDev=numpy.zeros((20,50),float)
+goodSentenceDev=numpy.zeros((20,50),float)
+badWordTrain=numpy.zeros((20,50),float)
+badSentenceTrain=numpy.zeros((20,50),float)
+badWordDev=numpy.zeros((20,50),float)
+badSentenceDev=numpy.zeros((20,50),float)
 
 for j in range(1,20):
 	message="on passe à des corpus de " + str(j*5) +" pourcents du corpus total."
 	print(message)
+	corpus_length=int(round(0.05*j*len(Xtrain)))
+	shuffler= list(range(0, len(Xtrain))) # listes des indices de X et Y.
 	for i in range (1,50): #nbr de run par tranche de corpus
-		print("lancement du run", i, "avec j=",j)
+		print("lancement du run ", i, "avec j=",j)
 		#Randomization du trainset. On train sur des tranches de j*5% du corpus
-		Xtaken=Ytaken=[]
-		shuffler= list(range(0, int(round(0.05*j*len(Xtrain))))) # listes des indices de X et Y.
+		Xtaken=[]
+		Ytaken=[]
 		random.shuffle(shuffler) # shuffle pour prendre des élements aléatoires. On ne shuffle pas X et Y pour garder la correspondance X(i) correspond à Y(i)
-		for k in range(len(shuffler)):
+		for k in range(corpus_length):
 			Xtaken.append(Xtrain[shuffler[k]])
 			Ytaken.append(Ytrain[shuffler[k]])
 		nb_symboles= numpy.max([numpy.max(U) for U in Xtaken])
@@ -62,25 +70,32 @@ for j in range(1,20):
 		trainer = HMMTrainer(range(nb_states), range(nb_symboles))
 		m= trainer.modeleGeneratif(Xtaken, Ytaken)
 		#évaluation de l'algo
-		(goodWordTrain[j,i],badWordTrain[j,i],goodSentenceTrain[j,i],badSentenceTrain[j,i]) = m.accuracyEval(Xtaken,Ytaken)
-		print("TRAIN SET")
-		print(	"words correctly estimated: ", goodWordTrain[j,i])
-		print(	"words not correctly estimated: ", badWordTrain[j,i])
-		print(	"accuracy on words: ", goodWordTrain[j,i]/float(goodWordTrain[j,i]+badWordTrain[j,i]))
-		print("accuracy on sentence:")
-		print(	"sentences correctly estimated: ", goodSentenceTrain[j,i])
-		print(	"sentences not correctly estimated: ", badSentenceTrain[j,i])
-		print(	"accuracy on sentences: ", goodSentenceTrain[j,i]/float(goodSentenceTrain[j,i]+badSentenceTrain[j,i]))
-
-		# (goodWordDev[j,i],badWordDev[j,i],goodSentenceDev[j,i], badSentenceDev[j,i]) = m.accuracyEval(Xdev,Ydev)
-		# print("DEV SET")
-		# print(	"words correctly estimated: ", goodWordDev[j,i])
-		# print(	"words not correctly estimated: ", badWordDev[j,i])
-		# print(	"accuracy on words: ", goodWordDev[j,i]/float(goodWordDev[j,i]+badWordDev[j,i]))
+		# (goodWordTrain[j,i],badWordTrain[j,i],goodSentenceTrain[j,i],badSentenceTrain[j,i]) = m.accuracyEval(Xtaken,Ytaken)
+		# print("TRAIN SET")
+		# print(	"words correctly estimated: ", goodWordTrain[j,i])
+		# print(	"words not correctly estimated: ", badWordTrain[j,i])
+		# print(	"accuracy on words: ", goodWordTrain[j,i]/float(goodWordTrain[j,i]+badWordTrain[j,i]))
 		# print("accuracy on sentence:")
-		# print(	"sentences correctly estimated: " ,goodSentenceDev[j,i])
-		# print(	"sentences not correctly estimated: ", badSentenceDev[j,i])
-		# print(	"accuracy on sentences: ", goodSentenceDev[j,i]/float(goodSentenceDev[j,i]+badSentenceDev[j,i]))
+		# print(	"sentences correctly estimated: ", goodSentenceTrain[j,i])
+		# print(	"sentences not correctly estimated: ", badSentenceTrain[j,i])
+		# print(	"accuracy on sentences: ", goodSentenceTrain[j,i]/float(goodSentenceTrain[j,i]+badSentenceTrain[j,i]))
+		(goodWordDev[j,i],badWordDev[j,i],goodSentenceDev[j,i], badSentenceDev[j,i]) = m.accuracyEval(Xdev,Ydev)
+		print("DEV SET")
+		print(	"words correctly estimated: ", goodWordDev[j,i])
+		print(	"words not correctly estimated: ", badWordDev[j,i])
+		print(	"accuracy on words: ", goodWordDev[j,i]/float(goodWordDev[j,i]+badWordDev[j,i]))
+		print("accuracy on sentence:")
+		print(	"sentences correctly estimated: " ,goodSentenceDev[j,i])
+		print(	"sentences not correctly estimated: ", badSentenceDev[j,i])
+		print(	"accuracy on sentences: ", goodSentenceDev[j,i]/float(goodSentenceDev[j,i]+badSentenceDev[j,i]))
+		# numpy.savetxt("goodWordTrain.csv", goodWordTrain, delimiter=",")
+		# numpy.savetxt("goodSentenceTrain.csv", goodSentenceTrain, delimiter=",")
+		# numpy.savetxt("badSentenceTrain", badSentenceTrain, delimiter=",")
+		# numpy.savetxt("badWordTrain", badWordTrain, delimiter=",")
+		numpy.savetxt("goodWordDev.csv", goodWordDev, delimiter=",")
+		numpy.savetxt("goodSentenceDev.csv", goodSentenceDev, delimiter=",")
+		numpy.savetxt("badSentenceDev", badSentenceDev, delimiter=",")
+		numpy.savetxt("badWordDev", badWordDev, delimiter=",")
 
 
 # m=HMM(0,0,[],[],[],0)
@@ -119,14 +134,3 @@ print("done. saving.")
 # print(	"sentences not correctly estimated: ", badSentenceDev)
 # print(	"accuracy on sentences: ", goodSentenceDev/float(goodSentenceDev+badSentenceDev))
 # m.save("hmm.pkl")
-
-
-numpy.savetxt("goodWordTrain.csv", goodWordTrain, delimiter=",")
-numpy.savetxt("goodSentenceTrain.csv", goodSentenceTrain, delimiter=",")
-numpy.savetxt("badSentenceTrain", badSentenceTrain, delimiter=",")
-numpy.savetxt("badWordTrain", badWordTrain, delimiter=",")
-
-# numpy.savetxt("goodWordDev.csv", goodWordDev, delimiter=",")
-# numpy.savetxt("goodSentenceDev.csv", goodSentenceDev, delimiter=",")
-# numpy.savetxt("badSentenceDev", badSentenceDev, delimiter=",")
-# numpy.savetxt("badWordDev", badWordDev, delimiter=",")
