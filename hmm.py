@@ -145,7 +145,7 @@ class HMM(object):
                     best = None
                     for i in range(N):
                         si = self._states[i]
-                        va = V[t-1, i] + self._problog(self._T[j][i])
+                        va = V[t-1, i] + self._problog(self._T[si][sj])
                         if not best or va > best[0]:
                             best = (va, si)
                     V[t, j] = best[0] + self._problog(self._E[sj][symbol])
@@ -165,7 +165,7 @@ class HMM(object):
                     best = None
                     for i in range(N):
                         si = self._states[i]
-                        va = V[t-1, i] + self._T[j][i]
+                        va = V[t-1, i] + self._T[si][sj]
                         if not best or va > best[0]:
                             best = (va, si)
                     V[t, j] = best[0] + self._E[sj][symbol]
