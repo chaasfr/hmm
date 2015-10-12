@@ -80,7 +80,7 @@ for j in range(1,21):
 
 		#évaluation de l'algo
 		#Train set
-		(goodWordTrain[j-1,i],badWordTrain[j-1,i-1],goodSentenceTrain[j-1,i-1],badSentenceTrain[j-1,i-1]) = m.accuracyEval(Xtaken,Ytaken)
+		(goodWordTrain[j-1,i-1],badWordTrain[j-1,i-1],goodSentenceTrain[j-1,i-1],badSentenceTrain[j-1,i-1]) = m.accuracyEval(Xtaken,Ytaken)
 		accuracyWordTrain[j-1,i-1]=goodWordTrain[j-1,i-1]/float(goodWordTrain[j-1,i-1]+badWordTrain[j-1,i-1])
 		accuracySentenceTrain[j-1,i-1]=goodSentenceTrain[j-1,i-1]/float(goodSentenceTrain[j-1,i-1]+badSentenceTrain[j-1,i-1])
 		print("TRAIN SET")
