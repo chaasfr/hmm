@@ -168,7 +168,7 @@ class HMM(object):
                         va = V[t-1, i] + self._T[si][sj]
                         if not best or va > best[0]:
                             best = (va, si)
-                    V[t, j] = best[0] + self._E[sj][symbol]
+                    V[t, j] = best[0] + self._E[sj,symbol]
                     B[t, sj] = best[1]
 
         # Reconstruit le chemin final:
@@ -250,5 +250,64 @@ class HMMTrainer(object):
         #Crée le HMM avec les paramêtres appris
         return HMM(self._symbols,self._states,T,E,pi,0)
 
-    #def ModeleDiscriminant(self,sequenceX,sequenceY):
-        #TODO
+#**********************
+# Entraine un HMM suivant le modèle discriminant
+# Pi la liste des scores initiaux (i.e. pi(Mi) est la probabilité que Mi débute la phrase)
+# T la liste des scores de transition
+# E la liste des scores d'émission
+# compte le nombre d'apparition en premier mot(pi), le nombre de bigramme(transition) et d'observation (emission)
+#**********************
+    def modeleDiscriminant(self,sequenceX,sequenceY,iteration,nb_states,nb_symbols,epsilon):
+        pi = zeros(nb_states,int)
+        T = zeros((nb_states,nb_states),int)
+        E = zeros((nb_states,nb_symbols),int)
+        symbols = range(nb_symbols)
+        states = range(nb_states)
+        modelHMM = HMM(symbols,states,T,E,pi,1)
+
+        # Iteration
+        for iterationNumber in range(iteration):
+            for sentenceNumber in range(len(sequenceY)):
+                # Initialisation du gradient
+                phiT = zeros((nb_states,nb_states))
+                phiTViterbi = zeros((nb_states,nb_states))
+                phiE = zeros((nb_states,nb_symbols))
+                phiEViterbi = zeros((nb_states,nb_symbols))
+                phiPi = zeros(nb_states)
+                phiPiViterbi = zeros(nb_states)
+                #print(states)
+                modelHMM = HMM(symbols,states,T,E,pi,1)
+                # Initialisation
+                # sentenceNumber2 = vectorRandomization[sentenceNumber]
+                m = sequenceX[sentenceNumber] # charge la phrase voulue
+
+                # Calcul via Viterbi à l'aide du modèle discriminant ayant fait iterationNumber - 1 itérations
+                cViterbi = modelHMM.viterbi(m) # Calcul la meilleure séquence de catégorie via l'algorithme de Viterbi
+                # print('viterbi',cViterbi)
+                c = sequenceY[sentenceNumber] # Charge les catégories voulues
+                # print('sequenceY',c)
+                for ti in range(nb_states):
+                    if c[0] == ti:
+                        phiPi[ti] = epsilon
+                    if cViterbi[0] == ti:
+                        phiPiViterbi[ti] = epsilon
+                    for tj in range(nb_states):
+                        for k in range(len(m)-1): # Boucle sur la longueur de la phrase
+                            if c[k] == ti and c[k+1] == tj:
+                                phiT[c[k],c[k+1]] = phiT[c[k],c[k+1]] + epsilon
+                            if cViterbi[k] == ti and cViterbi[k+1] == tj:
+                                phiTViterbi[cViterbi[k],cViterbi[k+1]] = phiTViterbi[cViterbi[k],cViterbi[k+1]] + epsilon
+                for k2 in range(len(m)):
+                    for k in range(len(m)):
+                        for categorie in range(nb_states):
+                            if c[k] == categorie and m[k]==m[k2]:
+                                phiE[categorie,m[k]] = phiE[categorie,m[k]] + epsilon
+                            if cViterbi[k] == categorie and m[k]==m[k2]:
+                                phiEViterbi[categorie,m[k]] = phiEViterbi[categorie,m[k]] + epsilon
+
+                # Mise à jour des poids du modèle pour la prochaine itération
+                T = T + phiT - phiTViterbi
+                E = E + phiE - phiEViterbi
+                pi = pi + phiPi - phiPiViterbi
+
+        return HMM(symbols,states,T,E,pi,1)
