@@ -99,6 +99,10 @@ def runCorpus(Xtrain, YTrain, sequenceTestX, sequenceTestY, corpusSizeMin, corpu
 	else:
 		print "test sur un set de test"
 
+	if (corpusSizeMax<corpusSizeMin):
+		print "please select an appropriate size"
+		return
+
 	corpusRange= corpusSizeMax - corpusSizeMin
 	stepMax =corpusRange /corpusStep +1
 	accuracyWord=numpy.zeros((stepMax,runNumber),float)
@@ -138,4 +142,8 @@ Xdev,Ydev=lireData("Data/ftb.dev.encode")
 # 4 tests par pallier de taille de corpus
 # training en modele generatif
 # test sur le trainingset
-runCorpus(Xtrain,Ytrain, Xdev, Ydev, 2, 5, 2, 4, 1, 0)
+corpusSizeMin=2
+corpusSizeMax=5
+corpusStep=2
+runNumber=4
+runCorpus(Xtrain,Ytrain, Xdev, Ydev, corpusSizeMin, corpusSizeMax, corpusStep, runNumber, 1, 0)
