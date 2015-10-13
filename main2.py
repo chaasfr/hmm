@@ -35,6 +35,9 @@ def lireData(sourceFile):
 
 Xtrain,Ytrain=lireData("Data/ftb.train.encode")
 Xdev,Ydev=lireData("Data/ftb.dev.encode")
+nb_symboles= numpy.max([numpy.max(U) for U in Xtrain])
+nb_states = numpy.max([numpy.max(U) for U in Ytrain])
+print nb_states
 
 goodWordTrain=numpy.zeros((20,15),float)
 goodSentenceTrain=numpy.zeros((20,15),float)
@@ -52,12 +55,12 @@ accuracySentenceTrain=numpy.zeros((20,15),float)
 
 iteration = 10
 
-for j in range(1,21):
-	message="on passe à des corpus de " + str(j*0.5) +" pourcents du corpus total."
+for j in range(8,21):
+	message="on passe à des corpus de " + str(j*5) +" pourcents du corpus total."
 	print(message)
-	corpus_length=int(round(0.005*j*len(Xtrain)))
+	corpus_length=int(round(0.05*j*len(Xtrain)))
 	shuffler= list(range(0, len(Xtrain))) # listes des indices de X et Y.
-	for i in range (1,16): #nbr de run par tranche de corpus
+	for i in range (1,6): #nbr de run par tranche de corpus
 		print("lancement du run ", i, "avec j=",j)
 		#Randomization du trainset. On train sur des tranches de j*5% du corpus
 		Xtaken=[]
@@ -68,15 +71,17 @@ for j in range(1,21):
 			Ytaken.append(Ytrain[shuffler[k]])
 
 		#modèle génératif:
-		# nb_symboles= numpy.max([numpy.max(U) for U in Xtaken])
-		# nb_states = numpy.max([numpy.max(U) for U in Ytaken])
-		#m= trainer.modeleGeneratif(Xtaken, Ytaken)
+		nb_symboles= numpy.max([numpy.max(U) for U in Xtaken])
+		nb_states = numpy.max([numpy.max(U) for U in Ytaken])
+		print nb_states
+		trainer = HMMTrainer(range(nb_states), range(nb_symboles))
+		m= trainer.modeleGeneratif(Xtaken, Ytaken)
 
 		#modèle discriminant:
-		nb_symboles= 27143
-		nb_states = 15
-		trainer = HMMTrainer(range(nb_states), range(nb_symboles))
-		m= trainer.modeleDiscriminant(Xtaken,Ytaken,iteration,nb_states,nb_symboles,1)
+		# nb_symboles= 27143
+		# nb_states = 15
+		# trainer = HMMTrainer(range(nb_states), range(nb_symboles))
+		# m= trainer.modeleDiscriminant(Xtaken,Ytaken,iteration,nb_states,nb_symboles,1)
 
 		#évaluation de l'algo
 		#Train set

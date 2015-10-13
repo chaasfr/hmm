@@ -110,6 +110,8 @@ class HMM(object):
             else:
                 badS +=1
         return(goodW,badW,goodS,badS)
+        # on retourne toutes les stats et non seulement le pourcentage d'erreur au cas où
+        # on souhaite analyser plus de données que juste la precision
 
     def _problog(self,p):
         #sert à calculer le log des probabilités dans Viterbi
