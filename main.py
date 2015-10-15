@@ -112,9 +112,9 @@ def runCorpus(Xtrain, YTrain, sequenceTestX, sequenceTestY, corpusSizeMin, corpu
 
 	for j in range(1,stepMax +1):
 		if(j*corpusStep<=corpusSizeMax):
-			message="on passe à des corpus de " + str(j*corpusStep) +" pourcents du corpus total."
+			message="on passe à des corpus de " + str(corpusSizeMin + j*corpusStep) +" pourcents du corpus total."
 			print(message)
-			corpusLength=int(round(corpusStep*j*len(Xtrain)/100))
+			corpusLength=int(round(corpusSizeMin + corpusStep*j*len(Xtrain)/100))
 			shuffler= list(range(0, len(Xtrain))) # listes des indices de X et Y.
 			for i in range (0,runNumber): #nbr de run par tranche de corpus
 				print("lancement du run ", i+1, "avec j=",j)
@@ -130,7 +130,7 @@ def runCorpus(Xtrain, YTrain, sequenceTestX, sequenceTestY, corpusSizeMin, corpu
 				aW,aS=evalAlgo(m,sequenceTestX,sequenceTestY)
 				accuracyWord[j-1,i]=aW
 				accuracySentence[j-1,i]=aS
-				numpy.savetxt("raccuracyWord.csv",accuracyWord,delimiter=",")
+				numpy.savetxt("accuracyWord.csv",accuracyWord,delimiter=",")
 				numpy.savetxt("accuracySentence.csv",accuracySentence,delimiter=",")
 
 Xtrain,Ytrain=lireData("Data/ftb.train.encode")
@@ -142,8 +142,9 @@ Xdev,Ydev=lireData("Data/ftb.dev.encode")
 # 4 tests par pallier de taille de corpus
 # training en modele generatif
 # test sur le trainingset
-corpusSizeMin=2
-corpusSizeMax=5
-corpusStep=2
-runNumber=4
-runCorpus(Xtrain,Ytrain, Xdev, Ydev, corpusSizeMin, corpusSizeMax, corpusStep, runNumber, 1, 0)
+corpusSizeMin=0
+corpusSizeMax=100
+corpusStep=1
+runNumber=20
+
+runCorpus(Xtrain,Ytrain, Xdev, Ydev, corpusSizeMin, corpusSizeMax, corpusStep, runNumber, 0, 1)

@@ -38,6 +38,12 @@ class HMM(object):
             print("no training selected ! Select 0 for gen or 1 for dis")
             self._modele =0
 
+        self._states = states
+        self._transitions = T
+        self._symbols = symbols
+        self._outputs = E
+        self._priors = pi
+
     def save(self,fileHMM):
         fo= open(fileHMM, "wb")
         fo.write( \
@@ -113,9 +119,33 @@ class HMM(object):
         # on retourne toutes les stats et non seulement le pourcentage d'erreur au cas où
         # on souhaite analyser plus de données que juste la precision
 
-    def _problog(self,p):
-        #sert à calculer le log des probabilités dans Viterbi
-        return (math.log(p, 2) if p != 0 else _NINF)
+    def probability(self, sequence):
+        return exp(self.log_probability(sequence))
+
+
+    def _output_logprob(self, state, symbol):
+        return self._outputs[state].logprob(symbol)
+
+    def log_probability(self, unlabeled_sequence):
+        T = len(unlabeled_sequence)
+        N = len(self._states)
+        alpha = zeros((T, N), float64)
+
+        symbol = unlabeled_sequence[0]
+        for i, state in enumerate(self._states):
+            alpha[0, i] = self._priors.logprob(state) + \
+                          self._outputs[state].logprob(symbol)
+        for t in range(1, T):
+            symbol = unlabeled_sequence[t]
+            for i, si in enumerate(self._states):
+                alpha[t, i] = _NINF
+                for j, sj in enumerate(self._states):
+                    alpha[t, i] = _log_add(alpha[t, i], alpha[t-1, j] +
+                                           self._transitions[sj].logprob(si))
+                alpha[t, i] += self._outputs[si].logprob(symbol)
+
+        p = _log_add(*alpha[T-1, :])
+        return p
 
     def viterbi(self,seq): #inspiré de hmm_mit_simple.best_path_simple
         #**********************
@@ -134,12 +164,14 @@ class HMM(object):
         #Si l'on a train en modele_gen, il faut prendre le log des probs pour éviter des pbs
         #de calcul. En revanche, en modele disc, on n'en a pas besoin.
         if self._modele==0:
-            # Les probabilités de débuter pour chaque état
+            # find the starting log probabilities for each state
             symbol = seq[0]
             for i, state in enumerate(self._states):
-                V[0, i] = self._problog(self._pi[state])+ self._problog(self._E[state][symbol])
+                V[0, i] = self._priors.logprob(state) + \
+                          self._output_logprob(state, symbol)
                 B[0, state] = None
-            # Cherche l'état avec la plus grande proba au temps t à partir de t-1
+
+            # find the maximum log probabilities for reaching each state at time t
             for t in range(1, T):
                 symbol = seq[t]
                 for j in range(N):
@@ -147,10 +179,10 @@ class HMM(object):
                     best = None
                     for i in range(N):
                         si = self._states[i]
-                        va = V[t-1, i] + self._problog(self._T[si][sj])
+                        va = V[t-1, i] + self._transitions[si].logprob(sj)
                         if not best or va > best[0]:
                             best = (va, si)
-                    V[t, j] = best[0] + self._problog(self._E[sj][symbol])
+                    V[t, j] = best[0] + self._output_logprob(sj, symbol)
                     B[t, sj] = best[1]
 
         elif self._modele==1:
@@ -213,44 +245,49 @@ class HMMTrainer(object):
 # E la liste des scores d'émission
 # compte le nombre d'apparition en premier mot(pi), le nombre de bigramme(transition) et d'observation (emission)
 #**********************
-    def modeleGeneratif(self,sequenceX,sequenceY):
-        #Compte les occurences, les transitions, les emissions et les starters de chaque phrase
-        pi = FreqDist()
-        T = ConditionalFreqDist()
-        E = ConditionalFreqDist()
-        occurence = FreqDist()
-        
-        for i in range(len(sequenceX)):
+    def modeleGeneratif(self, labelled_sequences_X, labelled_sequences_Y, **kwargs):
+        # default to the MLE estimate
+        estimator = kwargs.get('estimator')
+        if estimator == None:
+            estimator = lambda fdist, bins: MLEProbDist(fdist)
+
+        # count occurences of starting states, transitions out of each state
+        # and output symbols observed in each state
+        starting = FreqDist()
+        transitions = ConditionalFreqDist()
+        outputs = ConditionalFreqDist()
+        for i in range(len(labelled_sequences_X)):
             lasts = -1
-            xs = sequenceX[i]
-            ys = sequenceY[i]
+            xs = labelled_sequences_X[i]
+            ys = labelled_sequences_Y[i]
+            #print len(xs)
             for j in range(len(xs)):
                 state = ys[j]
+                #print state
+                #print lasts
+                #print xs
                 symbol = xs[j]
-                occurence[state] +=1
-                if lasts == -1: #si le mot débute la phrase
-                    pi[state] +=1 #compte le nombre de fois que state commence une phrase
+                if lasts == -1:
+                    starting[state] +=1
                 else:
-                    T[lasts][state] +=1 #compte le nombre de fois qu'on passe de lasts à state
-                E[state][symbol] +=1 # compte le nombre de fois qu'on étiquette symbol par state
+                    transitions[lasts][state] +=1 
+                outputs[state][symbol] +=1
                 lasts = state
 
-                # update de la liste des états et des symboles du HMM.
+                # update the state and symbol lists
                 if state not in self._states:
                     self._states.append(state)
                 if symbol not in self._symbols:
                     self._symbols.append(symbol)
 
-        #calcul les probabilités~fréquences relatives
-        for state in pi:
-            pi[state]=pi[state]/float(len(sequenceX)) #float car on est sur 0<x<1
-        for i in self._states:
-            for j in self._states:
-                if (occurence[i]!=0): T[i][j]=T[i][j] / float(occurence[i])
-            for j in self._symbols:
-                if (occurence[i]!=0): E[i][j]=E[i][j] / float(occurence[i])
-        #Crée le HMM avec les paramêtres appris
-        return HMM(self._symbols,self._states,T,E,pi,0)
+        # create probability distributions (with smoothing)
+        N = len(self._states)
+        pi = estimator(starting, N)
+        #print pi
+        A = ConditionalProbDist(transitions, ELEProbDist, N)
+        B = ConditionalProbDist(outputs, ELEProbDist, len(self._symbols))
+                               
+        return HMM(self._symbols, self._states, A, B, pi,0)
 
 #**********************
 # Entraine un HMM suivant le modèle discriminant
