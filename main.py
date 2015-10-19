@@ -67,11 +67,11 @@ def runGeneratif(Xtaken, Ytaken):
 	return m
 
 #train suivant le modèle discriminant
-def runDiscriminant(Xtaken,Ytaken,discriminantIteration):
+def runDiscriminant(Xtaken,Ytaken,discriminantIteration, epsilon):
 	nb_symboles= 27143
 	nb_states = 15
 	trainer = HMMTrainer(range(nb_states), range(nb_symboles))
-	m= trainer.modeleDiscriminant(Xtaken,Ytaken,discriminantIteration,nb_states,nb_symboles,1)
+	m= trainer.modeleDiscriminant(Xtaken,Ytaken,discriminantIteration,nb_states,nb_symboles,epsilon)
 	return m
 
 #fonction principale, lance une simulation avec les parametres suivants:
@@ -86,7 +86,7 @@ def runDiscriminant(Xtaken,Ytaken,discriminantIteration):
 #trainModel: 0 pour modèle génératif, 1 pour modèle discriminant
 #testCorpus: 0 pour tester sur le train set
 #discriminantIteration: combien d'iteration pour le training dans le cas du modèle discriminant
-def runCorpus(Xtrain, YTrain, sequenceTestX, sequenceTestY, corpusSizeMin, corpusSizeMax, corpusStep, runNumber, trainModel, testCorpus, discriminantIteration=None):
+def runCorpus(Xtrain, YTrain, sequenceTestX, sequenceTestY, corpusSizeMin, corpusSizeMax, corpusStep, runNumber, trainModel, testCorpus, epsilon=None, discriminantIteration=None):
 	if (trainModel==0):
 		print "training suivant le modèle génératif"
 	elif (trainModel==1):
@@ -110,8 +110,8 @@ def runCorpus(Xtrain, YTrain, sequenceTestX, sequenceTestY, corpusSizeMin, corpu
 	if discriminantIteration==None:
 		discriminantIteration=1;
 
-	for j in range(1,stepMax +1):
-		if(j*corpusStep<=corpusSizeMax):
+	for j in range(0,stepMax):
+		if(corpusSizeMin+j*corpusStep>0):
 			message="on passe à des corpus de " + str(corpusSizeMin + j*corpusStep) +" pourcents du corpus total."
 			print(message)
 			corpusLength=int(round(corpusSizeMin + corpusStep*j*len(Xtrain)/100))
@@ -121,17 +121,21 @@ def runCorpus(Xtrain, YTrain, sequenceTestX, sequenceTestY, corpusSizeMin, corpu
 				Xtaken,Ytaken = selectTrainRandom(Xtrain,YTrain,shuffler,corpusLength)
 				if(trainModel==0):
 					m=runGeneratif(Xtaken, Ytaken)
+					accuracyW="accuracyWGen.csv"
+					accuracyS="accuracySWGen.csv"
 				elif (trainModel==1):
-					m=runDiscriminant(Xtaken,Ytaken,discriminantIteration)
-
+					m=runDiscriminant(Xtaken,Ytaken,discriminantIteration, epsilon)
+					accuracyW="accuracyW-itModel"+str(discriminantIteration)+"-epsilon"+str(epsilon)+".csv"
+					accuracyS="accuracyS-itModel"+str(discriminantIteration)+"-epsilon"+str(epsilon)+".csv"
 				if (testCorpus==0):
 					sequenceTestX=Xtaken
 					sequenceTestY=Ytaken
 				aW,aS=evalAlgo(m,sequenceTestX,sequenceTestY)
-				accuracyWord[j-1,i]=aW
-				accuracySentence[j-1,i]=aS
-				numpy.savetxt("accuracyWord.csv",accuracyWord,delimiter=",")
-				numpy.savetxt("accuracySentence.csv",accuracySentence,delimiter=",")
+				accuracyWord[j,i]=aW
+				accuracySentence[j,i]=aS
+				print(accuracyName)
+				numpy.savetxt(accuracyW,accuracyWord,delimiter=",")
+				numpy.savetxt(accuracyS,accuracySentence,delimiter=",")
 
 Xtrain,Ytrain=lireData("Data/ftb.train.encode")
 Xdev,Ydev=lireData("Data/ftb.dev.encode")
@@ -144,7 +148,12 @@ Xdev,Ydev=lireData("Data/ftb.dev.encode")
 # test sur le trainingset
 corpusSizeMin=0
 corpusSizeMax=100
-corpusStep=1
-runNumber=20
+corpusStep=10
+runNumber=1
+isTrainedOnPerceptron= 0
+isTestOnTrainingSet= 0
+epsilon=0.01 # valeur d'epsilon par defaut
 
-runCorpus(Xtrain,Ytrain, Xdev, Ydev, corpusSizeMin, corpusSizeMax, corpusStep, runNumber, 0, 1)
+# for epsilon in [0.01,0.03,0.1,0.3,1,3]: # pas du gradient pour le modèle discriminant, on cherche à voir si la valeur du pas de gradient permet d'obtenir de meilleurs résultats ou non
+for iterationModel in [1,2]:#,3,5,8,13,21,34,53]: # suite de Fibonacci pour balayer un nombre de valeurs assez écartées
+	runCorpus(Xtrain,Ytrain, Xdev, Ydev, corpusSizeMin, corpusSizeMax, corpusStep, runNumber, isTrainedOnPerceptron, isTestOnTrainingSet, epsilon, iterationModel) # Rajouter epsilon et iterationModel pour mon cas

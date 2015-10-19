@@ -154,7 +154,6 @@ class HMM(object):
         # Entrées:
         # Seq: la sequence de mots étudiée
         #**********************
-
         T=len(seq)
         N=len(self._states)
         V = zeros((T, N), float64) #Matrice de calcul des scores temporaires. V[t,Sj]= score d'arriver en Sj au temps t
@@ -296,7 +295,7 @@ class HMMTrainer(object):
 # E la liste des scores d'émission
 # compte le nombre d'apparition en premier mot(pi), le nombre de bigramme(transition) et d'observation (emission)
 #**********************
-    def modeleDiscriminant(self,sequenceX,sequenceY,iteration,nb_states,nb_symbols,epsilon):
+def modeleDiscriminant(self,sequenceX,sequenceY,iteration,nb_states,nb_symbols,epsilon):
         pi = zeros(nb_states,int)
         T = zeros((nb_states,nb_states),int)
         E = zeros((nb_states,nb_symbols),int)
@@ -317,25 +316,18 @@ class HMMTrainer(object):
                 #print(states)
                 modelHMM = HMM(symbols,states,T,E,pi,1)
                 # Initialisation
-                # sentenceNumber2 = vectorRandomization[sentenceNumber]
                 m = sequenceX[sentenceNumber] # charge la phrase voulue
 
                 # Calcul via Viterbi à l'aide du modèle discriminant ayant fait iterationNumber - 1 itérations
                 cViterbi = modelHMM.viterbi(m) # Calcul la meilleure séquence de catégorie via l'algorithme de Viterbi
-                # print('viterbi',cViterbi)
                 c = sequenceY[sentenceNumber] # Charge les catégories voulues
-                # print('sequenceY',c)
-                for ti in range(nb_states):
-                    if c[0] == ti:
-                        phiPi[ti] = epsilon
-                    if cViterbi[0] == ti:
-                        phiPiViterbi[ti] = epsilon
-                    for tj in range(nb_states):
-                        for k in range(len(m)-1): # Boucle sur la longueur de la phrase
-                            if c[k] == ti and c[k+1] == tj:
-                                phiT[c[k],c[k+1]] = phiT[c[k],c[k+1]] + epsilon
-                            if cViterbi[k] == ti and cViterbi[k+1] == tj:
-                                phiTViterbi[cViterbi[k],cViterbi[k+1]] = phiTViterbi[cViterbi[k],cViterbi[k+1]] + epsilon
+
+                phiPi[c[0]] = epsilon
+                phiPi[cViterbi[0]] = epsilon
+
+                for k in range(len(m)-1): # Boucle sur la longueur de la phrase
+                    phiT[c[k],c[k+1]] = phiT[c[k],c[k+1]] + epsilon
+                    phiTViterbi[cViterbi[k],cViterbi[k+1]] = phiTViterbi[cViterbi[k],cViterbi[k+1]] + epsilon
                 for k2 in range(len(m)):
                     for k in range(len(m)):
                         for categorie in range(nb_states):
