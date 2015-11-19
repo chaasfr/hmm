@@ -1,6 +1,7 @@
 # coding=utf-8
 import numpy
 import random
+import matplotlib.pyplot as plt
 from hmm import HMMTrainer
 from hmm import HMM
 from random import shuffle
@@ -35,44 +36,22 @@ def lireData(sourceFile):
 
 #test la précision du training
 def evalAlgo(m, sequenceTestX,sequenceTestY):
-	goodWord,badWord,goodSentence, badSentence = m.accuracyEval(sequenceTestX,sequenceTestY)
-	accuracyWord=goodWord/float(goodWord+badWord)
-	accuracySentence=goodSentence/float(goodSentence+badSentence)
-	# print("words correctly estimated: ", goodWord)
-	# print("words not correctly estimated: ", badWord)
-	# print("accuracy on words: ", accuracyWord)
-	# print("accuracy on sentence:")
-	# print("sentences correctly estimated: " ,goodSentence)
-	# print("sentences not correctly estimated: ", badSentence)
-	# print("accuracy on sentences: ", accuracySentence)
-	return accuracyWord,accuracySentence
+	goodWordNumber,badWordNumber, wordWrong, goodSentenceNumber, badSentenceNumber = m.accuracyEval(sequenceTestX,sequenceTestY)
+	accuracyWord=goodWordNumber/float(goodWordNumber+badWordNumber)
+	accuracySentence=goodSentenceNumber/float(goodSentenceNumber+badSentenceNumber)
+	return accuracyWord,accuracySentence, wordWrong
 
 #choisie une portion aléatoire de taille corpusLength du corpus d'apprentissage pour le training.
-def selectTrainRandom(Xtrain,YTrain,shuffler,corpusLength):
+def selectTrainRandom(Xtrain,Ytrain,corpusLength):
 	#Randomization du trainset.
 	Xtaken=[]
 	Ytaken=[]
+	shuffler= list(range(0, len(Xtrain))) # listes des indices de X et Y.
 	random.shuffle(shuffler) # shuffle pour prendre des élements aléatoires. On ne shuffle pas X et Y pour garder la correspondance X(i) correspond à Y(i)
 	for k in range(corpusLength):
 		Xtaken.append(Xtrain[shuffler[k]])
 		Ytaken.append(Ytrain[shuffler[k]])
 	return(Xtaken,Ytaken)	
-
-#train suivant le modèle génératif
-def runGeneratif(Xtaken, Ytaken):
-	nb_symboles= numpy.max([numpy.max(U) for U in Xtaken])
-	nb_states = numpy.max([numpy.max(U) for U in Ytaken])
-	trainer = HMMTrainer(range(nb_states), range(nb_symboles))
-	m= trainer.modeleGeneratif(Xtaken, Ytaken)
-	return m
-
-#train suivant le modèle discriminant
-def runDiscriminant(Xtaken,Ytaken,discriminantIteration, epsilon):
-	nb_symboles= 27143
-	nb_states = 15
-	trainer = HMMTrainer(range(nb_states), range(nb_symboles))
-	m= trainer.modeleDiscriminant(Xtaken,Ytaken,discriminantIteration,nb_states,nb_symboles,epsilon)
-	return m
 
 #fonction principale, lance une simulation avec les parametres suivants:
 #Xtrain: liste de liste de symboles pour le training
@@ -86,59 +65,77 @@ def runDiscriminant(Xtaken,Ytaken,discriminantIteration, epsilon):
 #trainModel: 0 pour modèle génératif, 1 pour modèle discriminant
 #testCorpus: 0 pour tester sur le train set
 #discriminantIteration: combien d'iteration pour le training dans le cas du modèle discriminant
-def runCorpus(Xtrain, YTrain, sequenceTestX, sequenceTestY, corpusSizeMin, corpusSizeMax, corpusStep, runNumber, trainModel, testCorpus, epsilon=None, discriminantIteration=None):
-	if (trainModel==0):
-		print "training suivant le modèle génératif"
-	elif (trainModel==1):
-		print "training suivant le modèle discriminant"
+def runCorpus(corpusSizeMin, corpusSizeMax, corpusStep, runNumber, isTrainedOnPerceptron, isTestOnTrainingSet, epsilon=None, discriminantIteration=1, perceptronMoyenne=False):
+	if (isTrainedOnPerceptron):
+		if (perceptronMoyenne):
+			print "training suivant le modèle discriminant avec perceptron moyenne"
+		else:
+			print "training suivant le modèle discriminant avec perceptron NON moyenne"
 	else:
-		print "please select trainModel 0 for generative or 1 for discriminant"
-		return
-	if (testCorpus==0):
+		print "training suivant le modèle génératif"
+	if (isTestOnTrainingSet):
 		print "tests sur le corpus d'entrainement"
+		nbSymbolesTest=0
+		nbStatesTest=0
 	else:
 		print "test sur un set de test"
+		sequenceTestX,sequenceTestY=lireData("Data/ftb.dev.encode")
+		nbSymbolesTest= numpy.max([numpy.max(U) for U in sequenceTestX]) + 1
+		nbStatesTest= numpy.max([numpy.max(U) for U in sequenceTestY]) + 1
 
 	if (corpusSizeMax<corpusSizeMin):
 		print "please select an appropriate size"
 		return
 
+	Xtrain,Ytrain=lireData("Data/ftb.train.encode")
+
+	nbSymbolesTrain= numpy.max([numpy.max(U) for U in Xtrain]) + 1
+	nbStatesTrain = numpy.max([numpy.max(U) for U in Ytrain]) + 1 
+	nbSymboles=max(nbSymbolesTrain,nbSymbolesTest)
+	nbStates=max(nbStatesTrain,nbStatesTest)
+	trainer = HMMTrainer(range(nbStates), range(nbSymboles))
 	corpusRange= corpusSizeMax - corpusSizeMin
 	stepMax =corpusRange /corpusStep +1
 	accuracyWord=numpy.zeros((stepMax,runNumber),float)
 	accuracySentence=numpy.zeros((stepMax,runNumber),float)
-	if discriminantIteration==None:
-		discriminantIteration=1;
+	wordWrong=numpy.zeros(nbSymboles, int)
+	wordWrongTemp=numpy.zeros(nbSymboles, int)
 
 	for j in range(0,stepMax):
 		if(corpusSizeMin+j*corpusStep>0):
 			message="on passe à des corpus de " + str(corpusSizeMin + j*corpusStep) +" pourcents du corpus total."
 			print(message)
 			corpusLength=int(round(corpusSizeMin + corpusStep*j*len(Xtrain)/100))
-			shuffler= list(range(0, len(Xtrain))) # listes des indices de X et Y.
 			for i in range (0,runNumber): #nbr de run par tranche de corpus
 				print("lancement du run ", i+1, "avec j=",j)
-				Xtaken,Ytaken = selectTrainRandom(Xtrain,YTrain,shuffler,corpusLength)
-				if(trainModel==0):
-					m=runGeneratif(Xtaken, Ytaken)
-					accuracyW="accuracyWGen.csv"
-					accuracyS="accuracySWGen.csv"
-				elif (trainModel==1):
-					m=runDiscriminant(Xtaken,Ytaken,discriminantIteration, epsilon)
+				Xtaken,Ytaken = selectTrainRandom(Xtrain,Ytrain,corpusLength)
+
+				if(isTrainedOnPerceptron):
+					m= trainer.modeleDiscriminant(Xtaken,Ytaken,discriminantIteration,nbStates,nbSymboles,epsilon)
 					accuracyW="accuracyW-itModel"+str(discriminantIteration)+"-epsilon"+str(epsilon)+".csv"
 					accuracyS="accuracyS-itModel"+str(discriminantIteration)+"-epsilon"+str(epsilon)+".csv"
-				if (testCorpus==0):
+				else:
+					m= trainer.modeleGeneratif(Xtaken, Ytaken)
+					accuracyW="accuracyWGen.csv"
+					accuracyS="accuracySWGen.csv"
+				if (isTestOnTrainingSet):
 					sequenceTestX=Xtaken
 					sequenceTestY=Ytaken
-				aW,aS=evalAlgo(m,sequenceTestX,sequenceTestY)
+				aW, aS, wordWrongTemp=evalAlgo(m,sequenceTestX,sequenceTestY)
+				wordWrong= wordWrong + wordWrongTemp
 				accuracyWord[j,i]=aW
 				accuracySentence[j,i]=aS
-				print(accuracyName)
 				numpy.savetxt(accuracyW,accuracyWord,delimiter=",")
 				numpy.savetxt(accuracyS,accuracySentence,delimiter=",")
+	# wordWrong.sort()
+	# rect=plt.bar(range(nbSymboles),wordWrong,0.3)
+	# plt.xlabel('word misslabeled')
+	# plt.ylabel('number of misslabel')
+	# plt.show()
+	# print(numpy.sort(wordWrong)[-10:])
+	# print("jambon")
+	# print(numpy.argsort(wordWrong)[-10:])
 
-Xtrain,Ytrain=lireData("Data/ftb.train.encode")
-Xdev,Ydev=lireData("Data/ftb.dev.encode")
 
 #teste un entrainement avec comme parametre:
 #training sur (Xtrain, Ytrain)
@@ -148,12 +145,13 @@ Xdev,Ydev=lireData("Data/ftb.dev.encode")
 # test sur le trainingset
 corpusSizeMin=0
 corpusSizeMax=100
-corpusStep=10
+corpusStep=100
 runNumber=1
-isTrainedOnPerceptron= 0
-isTestOnTrainingSet= 0
+isTrainedOnPerceptron= True
+isTestOnTrainingSet= False
 epsilon=0.01 # valeur d'epsilon par defaut
+perceptronMoyenne= True # Fonctionne uniquement si isTrainedOnPerceptron est à True
 
 # for epsilon in [0.01,0.03,0.1,0.3,1,3]: # pas du gradient pour le modèle discriminant, on cherche à voir si la valeur du pas de gradient permet d'obtenir de meilleurs résultats ou non
-for iterationModel in [1,2]:#,3,5,8,13,21,34,53]: # suite de Fibonacci pour balayer un nombre de valeurs assez écartées
-	runCorpus(Xtrain,Ytrain, Xdev, Ydev, corpusSizeMin, corpusSizeMax, corpusStep, runNumber, isTrainedOnPerceptron, isTestOnTrainingSet, epsilon, iterationModel) # Rajouter epsilon et iterationModel pour mon cas
+for iterationModel in [1,1]:#,3,5,8,13,21,34,53]: # suite de Fibonacci pour balayer un nombre de valeurs assez écartées
+	runCorpus(corpusSizeMin, corpusSizeMax, corpusStep, runNumber, isTrainedOnPerceptron, isTestOnTrainingSet, epsilon, iterationModel, perceptronMoyenne) # Rajouter epsilon et iterationModel pour mon cas

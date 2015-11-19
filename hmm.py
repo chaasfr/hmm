@@ -69,14 +69,14 @@ class HMM(object):
         currentLine= 0
         lines=fo.readlines()
 
-        nb_states=int(lines[1])
+        nbStates=int(lines[1])
         self._states=[]
-        for i in range(nb_states):
+        for i in range(nbStates):
             self._states.append(i)
 
-        nb_symbols=int(lines[3])
+        nbSymbols=int(lines[3])
         self._symbols=[]
-        for i in range(nb_symbols):
+        for i in range(nbSymbols):
             self._symbols.append(i)
 
         self._pi=FreqDist()
@@ -98,24 +98,26 @@ class HMM(object):
         fo.close
 
     def accuracyEval(self,sequenceX,sequenceY):
-        goodW=0
-        badW=0
-        goodS=0
-        badS=0
+        goodWordNumber=0
+        badWordNumber=0
+        goodSentenceNumber=0
+        badSentenceNumber=0
+        wordWrong=zeros(len(self._symbols),int)
         for i in range(len(sequenceX)):
             l=self.viterbi(sequenceX[i])
             foundBad=0
             for j in range(len(sequenceY[i])):
                 if sequenceY[i][j] == l[j]:
-                    goodW +=1
+                    goodWordNumber +=1
                 else:
-                    badW +=1
+                    badWordNumber +=1
                     foundBad +=1
+                    wordWrong[sequenceX[i][j]]+=1
             if foundBad == 0:
-                goodS +=1
+                goodSentenceNumber +=1
             else:
-                badS +=1
-        return(goodW,badW,goodS,badS)
+                badSentenceNumber +=1
+        return(goodWordNumber, badWordNumber, wordWrong, goodSentenceNumber, badSentenceNumber)
         # on retourne toutes les stats et non seulement le pourcentage d'erreur au cas où
         # on souhaite analyser plus de données que juste la precision
 
@@ -259,12 +261,8 @@ class HMMTrainer(object):
             lasts = -1
             xs = labelled_sequences_X[i]
             ys = labelled_sequences_Y[i]
-            #print len(xs)
             for j in range(len(xs)):
                 state = ys[j]
-                #print state
-                #print lasts
-                #print xs
                 symbol = xs[j]
                 if lasts == -1:
                     starting[state] +=1
@@ -282,7 +280,6 @@ class HMMTrainer(object):
         # create probability distributions (with smoothing)
         N = len(self._states)
         pi = estimator(starting, N)
-        #print pi
         A = ConditionalProbDist(transitions, ELEProbDist, N)
         B = ConditionalProbDist(outputs, ELEProbDist, len(self._symbols))
                                
@@ -295,50 +292,64 @@ class HMMTrainer(object):
 # E la liste des scores d'émission
 # compte le nombre d'apparition en premier mot(pi), le nombre de bigramme(transition) et d'observation (emission)
 #**********************
-def modeleDiscriminant(self,sequenceX,sequenceY,iteration,nb_states,nb_symbols,epsilon):
-        pi = zeros(nb_states,int)
-        T = zeros((nb_states,nb_states),int)
-        E = zeros((nb_states,nb_symbols),int)
-        symbols = range(nb_symbols)
-        states = range(nb_states)
-        modelHMM = HMM(symbols,states,T,E,pi,1)
+    def modeleDiscriminant(self,sequenceX,sequenceY,iteration,nbStates,nbSymbols,epsilon, perceptronMoyenne=False):
+            pi = zeros(nbStates,int)
+            T = zeros((nbStates,nbStates),int)
+            E = zeros((nbStates,nbSymbols),int)
+            piMoy = zeros(nbStates,int)
+            TMoy = zeros((nbStates,nbStates),int)
+            EMoy = zeros((nbStates,nbSymbols),int)
+            symbols = range(nbSymbols)
+            states = range(nbStates)
+            modelHMM = HMM(symbols,states,T,E,pi,1)
 
-        # Iteration
-        for iterationNumber in range(iteration):
-            for sentenceNumber in range(len(sequenceY)):
-                # Initialisation du gradient
-                phiT = zeros((nb_states,nb_states))
-                phiTViterbi = zeros((nb_states,nb_states))
-                phiE = zeros((nb_states,nb_symbols))
-                phiEViterbi = zeros((nb_states,nb_symbols))
-                phiPi = zeros(nb_states)
-                phiPiViterbi = zeros(nb_states)
-                #print(states)
-                modelHMM = HMM(symbols,states,T,E,pi,1)
-                # Initialisation
-                m = sequenceX[sentenceNumber] # charge la phrase voulue
+            # Iteration
+            for iterationNumber in range(iteration):
+                for sentenceNumber in range(len(sequenceY)):
+                    # Initialisation du gradient
+                    phiT = zeros((nbStates,nbStates))
+                    phiTViterbi = zeros((nbStates,nbStates))
+                    phiE = zeros((nbStates,nbSymbols))
+                    phiEViterbi = zeros((nbStates,nbSymbols))
+                    phiPi = zeros(nbStates)
+                    phiPiViterbi = zeros(nbStates)
+                    #print(states)
+                    if(perceptronMoyenne):
+                        modelHMM = HMM(symbols,states,TMoy,EMoy,piMoy,1)
+                    else:
+                        modelHMM = HMM(symbols,states,T,E,pi,1)
+                    # Initialisation
+                    m = sequenceX[sentenceNumber] # charge la phrase voulue
 
-                # Calcul via Viterbi à l'aide du modèle discriminant ayant fait iterationNumber - 1 itérations
-                cViterbi = modelHMM.viterbi(m) # Calcul la meilleure séquence de catégorie via l'algorithme de Viterbi
-                c = sequenceY[sentenceNumber] # Charge les catégories voulues
+                    # Calcul via Viterbi à l'aide du modèle discriminant ayant fait iterationNumber - 1 itérations
+                    cViterbi = modelHMM.viterbi(m) # Calcul la meilleure séquence de catégorie via l'algorithme de Viterbi
+                    c = sequenceY[sentenceNumber] # Charge les catégories voulues
 
-                phiPi[c[0]] = epsilon
-                phiPi[cViterbi[0]] = epsilon
+                    phiPi[c[0]] = epsilon
+                    phiPi[cViterbi[0]] = epsilon
 
-                for k in range(len(m)-1): # Boucle sur la longueur de la phrase
-                    phiT[c[k],c[k+1]] = phiT[c[k],c[k+1]] + epsilon
-                    phiTViterbi[cViterbi[k],cViterbi[k+1]] = phiTViterbi[cViterbi[k],cViterbi[k+1]] + epsilon
-                for k2 in range(len(m)):
-                    for k in range(len(m)):
-                        for categorie in range(nb_states):
-                            if c[k] == categorie and m[k]==m[k2]:
-                                phiE[categorie,m[k]] = phiE[categorie,m[k]] + epsilon
-                            if cViterbi[k] == categorie and m[k]==m[k2]:
-                                phiEViterbi[categorie,m[k]] = phiEViterbi[categorie,m[k]] + epsilon
 
-                # Mise à jour des poids du modèle pour la prochaine itération
-                T = T + phiT - phiTViterbi
-                E = E + phiE - phiEViterbi
-                pi = pi + phiPi - phiPiViterbi
+                    for k in range(len(m)-1): # Boucle sur la longueur de la phrase
+                        phiT[c[k],c[k+1]] = phiT[c[k],c[k+1]] + epsilon
+                        phiTViterbi[cViterbi[k],cViterbi[k+1]] = phiTViterbi[cViterbi[k],cViterbi[k+1]] + epsilon
+                    for k2 in range(len(m)):
+                        for k in range(len(m)):
+                            for categorie in range(nbStates):
+                                if c[k] == categorie and m[k]==m[k2]:
+                                    phiE[categorie,m[k]] = phiE[categorie,m[k]] + epsilon
+                                if cViterbi[k] == categorie and m[k]==m[k2]:
+                                    phiEViterbi[categorie,m[k]] = phiEViterbi[categorie,m[k]] + epsilon
 
-        return HMM(symbols,states,T,E,pi,1)
+                    # Mise à jour des poids du modèle pour la prochaine itération
+                    if(perceptronMoyenne):
+                        TMoy = (TMoy * (iterationNumber) + T + phiT - phiTViterbi) / (iterationNumber+1)
+                        EMoy = (EMoy * (iterationNumber) + E + phiE - phiEViterbi) / (iterationNumber+1)
+                        piMoy = (piMoy * (iterationNumber) + pi + phiPi - phiPiViterbi) / (iterationNumber+1)
+                    else:
+                        T = T + phiT - phiTViterbi
+                        E = E + phiE - phiEViterbi
+                        pi = pi + phiPi - phiPiViterbi
+            if (perceptronMoyenne):
+                return HMM(symbols,states,TMoy,EMoy,piMoy,1)
+            else:
+                return HMM(symbols,states,T,E,pi,1)
