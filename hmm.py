@@ -2,6 +2,7 @@
 from nltk.probability import *
 from numpy import *
 from random import shuffle
+import linecache
 _NINF = float('-1e300')
 
 class HMM(object):
@@ -39,10 +40,10 @@ class HMM(object):
             self._modele =0
 
         self._states = states
-        self._transitions = T
+        self._T = T
         self._symbols = symbols
-        self._outputs = E
-        self._priors = pi
+        self._E = E
+        self._pi = pi
 
     def save(self,fileHMM):
         fo= open(fileHMM, "wb")
@@ -70,27 +71,23 @@ class HMM(object):
         lines=fo.readlines()
 
         nbStates=int(lines[1])
-        self._states=[]
-        for i in range(nbStates):
-            self._states.append(i)
+        self._states=range(nbStates)
 
         nbSymbols=int(lines[3])
-        self._symbols=[]
-        for i in range(nbSymbols):
-            self._symbols.append(i)
+        self._symbols=range(nbSymbols)
 
-        self._pi=FreqDist()
+        self._pi=zeros(nbStates,float)
         currentLine=5
         for i in range(len(self._states)):
             self._pi[i]=float(lines[i+currentLine][0:7])
 
-        self._T=ConditionalFreqDist()
+        self._T=zeros((nbStates,nbStates),float)
         currentLine = currentLine + len(self._states) + 1
         for i in range(len(self._states)):
             for j in range(len(self._states)):
                 self._T[i][j]=float(lines[i*len(self._states)+j+currentLine][0:7])
 
-        self._E=ConditionalFreqDist()
+        self._E=zeros((nbStates,nbSymbols),float)
         currentLine = currentLine + len(self._states) * len(self._states) + 1
         for i in range(len(self._states)):
             for j in range(len(self._symbols)):
@@ -102,11 +99,14 @@ class HMM(object):
         badWordNumber=0
         goodSentenceNumber=0
         badSentenceNumber=0
-        wordWrong=zeros(len(self._symbols),int)
+        wordWrong=zeros(len(self._symbols),float)
+        wordCount=zeros(len(self._symbols),float)
+        freq=zeros(len(self._symbols),float)
         for i in range(len(sequenceX)):
-            l=self.viterbi(sequenceX[i])
+            l=self.viterbi(sequenceX[i], True)
             foundBad=0
             for j in range(len(sequenceY[i])):
+                wordCount[sequenceX[i][j]] += 1
                 if sequenceY[i][j] == l[j]:
                     goodWordNumber +=1
                 else:
@@ -117,16 +117,31 @@ class HMM(object):
                 goodSentenceNumber +=1
             else:
                 badSentenceNumber +=1
-        return(goodWordNumber, badWordNumber, wordWrong, goodSentenceNumber, badSentenceNumber)
+        for j in range(len(self._symbols)):
+            if(wordCount[j]!=0):
+                freq[j] = wordWrong[j] / (wordCount[j])
+        return(goodWordNumber, badWordNumber, freq, goodSentenceNumber, badSentenceNumber)
         # on retourne toutes les stats et non seulement le pourcentage d'erreur au cas où
         # on souhaite analyser plus de données que juste la precision
+
+    def isWordUnknown(self, wordTested):
+        wordIsUnknown= True
+        for i in self._states:
+            if(self._E[i,wordTested] !=0):
+                wordIsUnknown = False
+        return(wordIsUnknown)
+
+    def indexToWord(self, wordIndex):
+        return(linecache.getline("Data/vocab",wordIndex))
+
+    def isANoun(self,word):
+        return(len(word)>1 and word[0].isupper() and word[1].islower())
 
     def probability(self, sequence):
         return exp(self.log_probability(sequence))
 
-
     def _output_logprob(self, state, symbol):
-        return self._outputs[state].logprob(symbol)
+        return self._E[state].logprob(symbol)
 
     def log_probability(self, unlabeled_sequence):
         T = len(unlabeled_sequence)
@@ -135,21 +150,45 @@ class HMM(object):
 
         symbol = unlabeled_sequence[0]
         for i, state in enumerate(self._states):
-            alpha[0, i] = self._priors.logprob(state) + \
-                          self._outputs[state].logprob(symbol)
+            alpha[0, i] = self._pi.logprob(state) + \
+                          self._E[state].logprob(symbol)
         for t in range(1, T):
             symbol = unlabeled_sequence[t]
             for i, si in enumerate(self._states):
                 alpha[t, i] = _NINF
                 for j, sj in enumerate(self._states):
                     alpha[t, i] = _log_add(alpha[t, i], alpha[t-1, j] +
-                                           self._transitions[sj].logprob(si))
-                alpha[t, i] += self._outputs[si].logprob(symbol)
+                                           self._T[sj].logprob(si))
+                alpha[t, i] += self._E[si].logprob(symbol)
 
         p = _log_add(*alpha[T-1, :])
         return p
 
-    def viterbi(self,seq): #inspiré de hmm_mit_simple.best_path_simple
+    def suffixAnalyse(self,word,symbol):
+        fo=open("Data/vocab","r")
+        lines=fo.readlines()
+        nbWords = 0
+        for j in range(len(lines)):
+            if(not self.isWordUnknown(j)):
+                i=0
+                sizeLongestSameSuffixe=0
+                sameSuffixe= True
+                while(i<len(word) and i<len(lines[j]) and sameSuffixe):
+                        if(word[-i] != lines[j][-i]):
+                            sameSuffixe = False
+                        else:
+                            i +=1
+                if(i==sizeLongestSameSuffixe):
+                    self._E[:,symbol] += self._E[:,j]
+                    nbWords += 1
+                elif (i> sizeLongestSameSuffixe):
+                    self._E[:,symbol] = zeros(len(self._states),float)
+                    self._E[:,symbol] += self._E[:,j]
+                    nbWords = 1
+        self._E[:,symbol] = self._E[:,symbol]/ nbWords
+        return()
+
+    def viterbi(self,seq, isEvaling=False): #inspiré de hmm_mit_simple.best_path_simple
         #**********************
         # Forme générale de l'algorithme de Viterbi
         # Retourne la séq d'obs maximisant le score associé à la séquence d'entrée
@@ -164,11 +203,12 @@ class HMM(object):
         #On discerne deux cas suivant si l'on a train en modele_gen ou en modele discr
         #Si l'on a train en modele_gen, il faut prendre le log des probs pour éviter des pbs
         #de calcul. En revanche, en modele disc, on n'en a pas besoin.
+
         if self._modele==0:
             # find the starting log probabilities for each state
             symbol = seq[0]
             for i, state in enumerate(self._states):
-                V[0, i] = self._priors.logprob(state) + \
+                V[0, i] = self._pi.logprob(state) + \
                           self._output_logprob(state, symbol)
                 B[0, state] = None
 
@@ -180,7 +220,7 @@ class HMM(object):
                     best = None
                     for i in range(N):
                         si = self._states[i]
-                        va = V[t-1, i] + self._transitions[si].logprob(sj)
+                        va = V[t-1, i] + self._T[si].logprob(sj)
                         if not best or va > best[0]:
                             best = (va, si)
                     V[t, j] = best[0] + self._output_logprob(sj, symbol)
@@ -195,6 +235,13 @@ class HMM(object):
             # Cherche l'état avec la plus grande proba au temps t à partir de t-1
             for t in range(1, T):
                 symbol = seq[t]
+                #detect les mots inconnus
+                if (isEvaling and self.isWordUnknown(symbol)):
+                    unknownWord=self.indexToWord(symbol)
+                    if(self.isANoun(unknownWord) and len(self.indexToWord(seq[t-1])) > 3):
+                        self._E[7,symbol]=1
+                    else:
+                        self.suffixAnalyse(unknownWord,symbol)
                 for j in range(N):
                     sj = self._states[j]
                     best = None
@@ -239,24 +286,24 @@ class HMMTrainer(object):
         else:
             self._symbols = []
 
-#**********************
-# Entraine un HMM suivant le modèle génératif
-# Pi la liste des scores initiaux (i.e. pi(Mi) est la probabilité que Mi débute la phrase)
-# T la liste des scores de transition
-# E la liste des scores d'émission
-# compte le nombre d'apparition en premier mot(pi), le nombre de bigramme(transition) et d'observation (emission)
-#**********************
     def modeleGeneratif(self, labelled_sequences_X, labelled_sequences_Y, **kwargs):
+        #**********************
+        # Entraine un HMM suivant le modèle génératif
+        # Pi la liste des scores initiaux (i.e. pi(Mi) est la probabilité que Mi débute la phrase)
+        # T la liste des scores de transition
+        # E la liste des scores d'émission
+        # compte le nombre d'apparition en premier mot(pi), le nombre de bigramme(transition) et d'observation (emission)
+        #**********************
         # default to the MLE estimate
         estimator = kwargs.get('estimator')
         if estimator == None:
             estimator = lambda fdist, bins: MLEProbDist(fdist)
 
-        # count occurences of starting states, transitions out of each state
+        # count occurences of starting states, T out of each state
         # and output symbols observed in each state
         starting = FreqDist()
-        transitions = ConditionalFreqDist()
-        outputs = ConditionalFreqDist()
+        T = ConditionalFreqDist()
+        E = ConditionalFreqDist()
         for i in range(len(labelled_sequences_X)):
             lasts = -1
             xs = labelled_sequences_X[i]
@@ -267,8 +314,8 @@ class HMMTrainer(object):
                 if lasts == -1:
                     starting[state] +=1
                 else:
-                    transitions[lasts][state] +=1 
-                outputs[state][symbol] +=1
+                    T[lasts][state] +=1 
+                E[state][symbol] +=1
                 lasts = state
 
                 # update the state and symbol lists
@@ -280,76 +327,70 @@ class HMMTrainer(object):
         # create probability distributions (with smoothing)
         N = len(self._states)
         pi = estimator(starting, N)
-        A = ConditionalProbDist(transitions, ELEProbDist, N)
-        B = ConditionalProbDist(outputs, ELEProbDist, len(self._symbols))
+        A = ConditionalProbDist(T, ELEProbDist, N)
+        B = ConditionalProbDist(E, ELEProbDist, len(self._symbols))
                                
         return HMM(self._symbols, self._states, A, B, pi,0)
 
-#**********************
-# Entraine un HMM suivant le modèle discriminant
-# Pi la liste des scores initiaux (i.e. pi(Mi) est la probabilité que Mi débute la phrase)
-# T la liste des scores de transition
-# E la liste des scores d'émission
-# compte le nombre d'apparition en premier mot(pi), le nombre de bigramme(transition) et d'observation (emission)
-#**********************
     def modeleDiscriminant(self,sequenceX,sequenceY,iteration,nbStates,nbSymbols,epsilon, perceptronMoyenne=False):
-            pi = zeros(nbStates,int)
-            T = zeros((nbStates,nbStates),int)
-            E = zeros((nbStates,nbSymbols),int)
-            piMoy = zeros(nbStates,int)
-            TMoy = zeros((nbStates,nbStates),int)
-            EMoy = zeros((nbStates,nbSymbols),int)
-            symbols = range(nbSymbols)
-            states = range(nbStates)
-            modelHMM = HMM(symbols,states,T,E,pi,1)
+        #**********************
+        # Entraine un HMM suivant le modèle discriminant
+        # Pi la liste des scores initiaux (i.e. pi(Mi) est la probabilité que Mi débute la phrase)
+        # T la liste des scores de transition
+        # E la liste des scores d'émission
+        # compte le nombre d'apparition en premier mot(pi), le nombre de bigramme(transition) et d'observation (emission)
+        #**********************
+        pi = zeros(nbStates,float)
+        T = zeros((nbStates,nbStates),float)
+        E = zeros((nbStates,nbSymbols),float)
 
-            # Iteration
-            for iterationNumber in range(iteration):
-                for sentenceNumber in range(len(sequenceY)):
-                    # Initialisation du gradient
-                    phiT = zeros((nbStates,nbStates))
-                    phiTViterbi = zeros((nbStates,nbStates))
-                    phiE = zeros((nbStates,nbSymbols))
-                    phiEViterbi = zeros((nbStates,nbSymbols))
-                    phiPi = zeros(nbStates)
-                    phiPiViterbi = zeros(nbStates)
-                    #print(states)
-                    if(perceptronMoyenne):
-                        modelHMM = HMM(symbols,states,TMoy,EMoy,piMoy,1)
-                    else:
-                        modelHMM = HMM(symbols,states,T,E,pi,1)
-                    # Initialisation
-                    m = sequenceX[sentenceNumber] # charge la phrase voulue
+        symbols = range(nbSymbols)
+        states = range(nbStates)
+        modelHMM = HMM(symbols,states,T,E,pi,1)
 
-                    # Calcul via Viterbi à l'aide du modèle discriminant ayant fait iterationNumber - 1 itérations
-                    cViterbi = modelHMM.viterbi(m) # Calcul la meilleure séquence de catégorie via l'algorithme de Viterbi
-                    c = sequenceY[sentenceNumber] # Charge les catégories voulues
+        # Iteration
+        for iterationNumber in range(iteration):
+            print(iterationNumber)
+            for sentenceNumber in range(len(sequenceY)):
+                # Initialisation du gradient
+                phiT = zeros((nbStates,nbStates))
+                phiTViterbi = zeros((nbStates,nbStates))
+                phiE = zeros((nbStates,nbSymbols))
+                phiEViterbi = zeros((nbStates,nbSymbols))
+                phiPi = zeros(nbStates)
+                phiPiViterbi = zeros(nbStates)
 
-                    phiPi[c[0]] = epsilon
-                    phiPi[cViterbi[0]] = epsilon
+                modelHMM = HMM(symbols,states,T,E,pi,1)
+                # Initialisation
+                m = sequenceX[sentenceNumber] # charge la phrase voulue
+
+                # Calcul via Viterbi à l'aide du modèle discriminant ayant fait iterationNumber - 1 itérations
+                cViterbi = modelHMM.viterbi(m) # Calcul la meilleure séquence de catégorie via l'algorithme de Viterbi
+                c = sequenceY[sentenceNumber] # Charge les catégories voulues
+
+                phiPi[c[0]] = epsilon
+                phiPi[cViterbi[0]] = epsilon
 
 
-                    for k in range(len(m)-1): # Boucle sur la longueur de la phrase
-                        phiT[c[k],c[k+1]] = phiT[c[k],c[k+1]] + epsilon
-                        phiTViterbi[cViterbi[k],cViterbi[k+1]] = phiTViterbi[cViterbi[k],cViterbi[k+1]] + epsilon
-                    for k2 in range(len(m)):
-                        for k in range(len(m)):
-                            for categorie in range(nbStates):
-                                if c[k] == categorie and m[k]==m[k2]:
-                                    phiE[categorie,m[k]] = phiE[categorie,m[k]] + epsilon
-                                if cViterbi[k] == categorie and m[k]==m[k2]:
-                                    phiEViterbi[categorie,m[k]] = phiEViterbi[categorie,m[k]] + epsilon
+                for k in range(len(m)-1): # Boucle sur la longueur de la phrase
+                    phiT[c[k],c[k+1]] = phiT[c[k],c[k+1]] + epsilon
+                    phiTViterbi[cViterbi[k],cViterbi[k+1]] = phiTViterbi[cViterbi[k],cViterbi[k+1]] + epsilon
+                for k2 in range(len(m)):
+                    for k in range(len(m)):
+                        for categorie in range(nbStates):
+                            if c[k] == categorie and m[k]==m[k2]:
+                                phiE[categorie,m[k]] = phiE[categorie,m[k]] + epsilon
+                            if cViterbi[k] == categorie and m[k]==m[k2]:
+                                phiEViterbi[categorie,m[k]] = phiEViterbi[categorie,m[k]] + epsilon
 
-                    # Mise à jour des poids du modèle pour la prochaine itération
-                    if(perceptronMoyenne):
-                        TMoy = (TMoy * (iterationNumber) + T + phiT - phiTViterbi) / (iterationNumber+1)
-                        EMoy = (EMoy * (iterationNumber) + E + phiE - phiEViterbi) / (iterationNumber+1)
-                        piMoy = (piMoy * (iterationNumber) + pi + phiPi - phiPiViterbi) / (iterationNumber+1)
-                    else:
-                        T = T + phiT - phiTViterbi
-                        E = E + phiE - phiEViterbi
-                        pi = pi + phiPi - phiPiViterbi
-            if (perceptronMoyenne):
-                return HMM(symbols,states,TMoy,EMoy,piMoy,1)
-            else:
-                return HMM(symbols,states,T,E,pi,1)
+                # Mise à jour des poids du modèle pour la prochaine itération
+                if(perceptronMoyenne):
+                    T = (T * (iterationNumber) + phiT - phiTViterbi) / (iterationNumber+1)
+                    E = (E * (iterationNumber) + phiE - phiEViterbi) / (iterationNumber+1)
+                    pi = (pi * (iterationNumber) + phiPi - phiPiViterbi) / (iterationNumber+1)
+                else:
+                    T = T + phiT - phiTViterbi
+                    E = E + phiE - phiEViterbi
+                    pi = pi + phiPi - phiPiViterbi
+
+        return HMM(symbols,states,T,E,pi,1)
