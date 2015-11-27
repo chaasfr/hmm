@@ -101,7 +101,6 @@ class HMM(object):
         badSentenceNumber=0
         wordWrong=zeros(len(self._symbols),float)
         wordCount=zeros(len(self._symbols),float)
-        freq=zeros(len(self._symbols),float)
         for i in range(len(sequenceX)):
             l=self.viterbi(sequenceX[i], True)
             foundBad=0
@@ -117,10 +116,7 @@ class HMM(object):
                 goodSentenceNumber +=1
             else:
                 badSentenceNumber +=1
-        for j in range(len(self._symbols)):
-            if(wordCount[j]!=0):
-                freq[j] = wordWrong[j] / (wordCount[j])
-        return(goodWordNumber, badWordNumber, freq, goodSentenceNumber, badSentenceNumber)
+        return(goodWordNumber, badWordNumber, wordWrong,wordCount, goodSentenceNumber, badSentenceNumber)
         # on retourne toutes les stats et non seulement le pourcentage d'erreur au cas où
         # on souhaite analyser plus de données que juste la precision
 

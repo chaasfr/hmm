@@ -1,7 +1,7 @@
 # coding=utf-8
 import numpy
 import random
-import matplotlib.pyplot as plt
+import linecache
 from hmm import HMMTrainer
 from hmm import HMM
 from random import shuffle
@@ -36,10 +36,10 @@ def lireData(sourceFile):
 
 #test la précision du training
 def evalAlgo(m, sequenceTestX,sequenceTestY):
-	goodWordNumber,badWordNumber, wordWrong, goodSentenceNumber, badSentenceNumber = m.accuracyEval(sequenceTestX,sequenceTestY)
+	goodWordNumber,badWordNumber, wordWrong, wordCount, goodSentenceNumber, badSentenceNumber = m.accuracyEval(sequenceTestX,sequenceTestY)
 	accuracyWord=goodWordNumber/float(goodWordNumber+badWordNumber)
 	accuracySentence=goodSentenceNumber/float(goodSentenceNumber+badSentenceNumber)
-	return accuracyWord,accuracySentence, wordWrong
+	return accuracyWord,accuracySentence, wordWrong, wordCount
 
 #choisie une portion aléatoire de taille corpusLength du corpus d'apprentissage pour le training.
 def selectTrainRandom(Xtrain,Ytrain,corpusLength):
@@ -98,8 +98,11 @@ def runCorpus(corpusSizeMin, corpusSizeMax, corpusStep, runNumber, isTrainedOnPe
 	stepMax =corpusRange /corpusStep +1
 	accuracyWord=numpy.zeros((stepMax,runNumber),float)
 	accuracySentence=numpy.zeros((stepMax,runNumber),float)
+	wordCount= numpy.zeros(nbSymboles,float)
 	wordWrong=numpy.zeros(nbSymboles, float)
 	wordWrongTemp=numpy.zeros(nbSymboles, float)
+	wordCountTemp=numpy.zeros(nbSymboles, float)
+	wrongWordFrequencies=numpy.zeros((nbSymboles,3), float)
 
 	for j in range(0,stepMax):
 		if(corpusSizeMin+j*corpusStep>0):
@@ -115,8 +118,8 @@ def runCorpus(corpusSizeMin, corpusSizeMax, corpusStep, runNumber, isTrainedOnPe
 					m= trainer.modeleDiscriminant(Xtaken,Ytaken,discriminantIteration,nbStates,nbSymboles,epsilon, perceptronMoyenne)
 					# m=HMM(0,0,0,0,0,1)
 					# m.load("hmm.pkl")
-					accuracyW="accuracyW-itModel"+str(discriminantIteration)+"-epsilon"+str(epsilon)+".csv"
-					accuracyS="accuracyS-itModel"+str(discriminantIteration)+"-epsilon"+str(epsilon)+".csv"
+					accuracyW="NONaccuracyW-itModel"+str(discriminantIteration)+"-epsilon"+str(epsilon)+".csv"
+					accuracyS="NONaccuracyS-itModel"+str(discriminantIteration)+"-epsilon"+str(epsilon)+".csv"
 				else:
 					m= trainer.modeleGeneratif(Xtaken, Ytaken)
 					accuracyW="accuracyWGen.csv"
@@ -124,14 +127,22 @@ def runCorpus(corpusSizeMin, corpusSizeMax, corpusStep, runNumber, isTrainedOnPe
 				if (isTestOnTrainingSet):
 					sequenceTestX=Xtaken
 					sequenceTestY=Ytaken
-				aW, aS, wordWrongTemp=evalAlgo(m,sequenceTestX,sequenceTestY)
+				aW, aS, wordWrongTemp,wordCountTemp=evalAlgo(m,sequenceTestX,sequenceTestY)
 				wordWrong= wordWrong + wordWrongTemp
+				wordCount= wordCount + wordCountTemp
 				accuracyWord[j,i]=aW
 				accuracySentence[j,i]=aS
 				numpy.savetxt(accuracyW,accuracyWord,delimiter=",")
 				numpy.savetxt(accuracyS,accuracySentence,delimiter=",")
-	numpy.savetxt("wrongWordFrequencies.csv",wordWrong,delimiter=",")
-	m.save("hmm.pkl")
+	for j in range(nbSymboles):
+		wrongWordFrequencies[j,0]= wordCount[j]
+		wrongWordFrequencies[j,1]=wordWrong[j]
+		if(wordCount[j]!=0):
+			wrongWordFrequencies[j,2] = wordWrong[j] / (wordCount[j])
+		else:
+			wrongWordFrequencies[j,2]=0
+	numpy.savetxt("NONwrongWordFrequencies-itModel"+str(discriminantIteration)+"-epsilon"+str(epsilon)+".csv",wrongWordFrequencies,delimiter=",")
+	# m.save("hmm.pkl")
 
 
 #teste un entrainement avec comme parametre:
@@ -140,16 +151,16 @@ def runCorpus(corpusSizeMin, corpusSizeMax, corpusStep, runNumber, isTrainedOnPe
 # 4 tests par pallier de taille de corpus
 # training en modele generatif
 # test sur le trainingset
-corpusSizeMin=100
+corpusSizeMin=10
 corpusSizeMax=100
-corpusStep=100
+corpusStep=10
 runNumber=5
 isTrainedOnPerceptron= True
 isTestOnTrainingSet= False
-epsilon=0.1 # valeur d'epsilon par defaut
-perceptronMoyenne= False # Fonctionne uniquement si isTrainedOnPerceptron est à True
+epsilon=1 # valeur d'epsilon par defaut
+perceptronMoyenne= True # Fonctionne uniquement si isTrainedOnPerceptron est à True
 
 # for epsilon in [0.01,0.03,0.1,0.3,1,3]: # pas du gradient pour le modèle discriminant, on cherche à voir si la valeur du pas de gradient permet d'obtenir de meilleurs résultats ou non
 # for iterationModel in [13,13]:#,3,5,8,13,21,34,53]: # suite de Fibonacci pour balayer un nombre de valeurs assez écartées
-iterationModel=13
+iterationModel=5
 runCorpus(corpusSizeMin, corpusSizeMax, corpusStep, runNumber, isTrainedOnPerceptron, isTestOnTrainingSet, epsilon, iterationModel, perceptronMoyenne) # Rajouter epsilon et iterationModel pour mon cas
